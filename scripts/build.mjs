@@ -61,7 +61,7 @@ if (targets.length === 0) {
 
 for (const { dir, pkg } of targets) {
   const entry = entryFor(pkg, dir);
-  const outfile = join(dir, 'dist', 'cli.js');
+  const outfile = join(dir, 'dist', 'cli.mjs');
   await mkdir(dirname(outfile), { recursive: true });
 
   await build({

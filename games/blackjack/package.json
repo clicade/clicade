@@ -3,7 +3,15 @@
   "version": "0.0.0",
   "type": "module",
   "description": "Blackjack in your terminal. Zero dependencies, real table, no readline prompts.",
-  "keywords": ["blackjack", "cli", "game", "terminal", "tui", "cards", "clicade"],
+  "keywords": [
+    "blackjack",
+    "cli",
+    "game",
+    "terminal",
+    "tui",
+    "cards",
+    "clicade"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -15,11 +23,13 @@
     "node": ">=18"
   },
   "bin": {
-    "blackjack": "./dist/cli.js"
+    "blackjack": "./dist/cli.mjs"
   },
-  "main": "./dist/cli.js",
+  "main": "./dist/cli.mjs",
   "source": "./index.js",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },

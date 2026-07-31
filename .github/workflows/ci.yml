@@ -72,8 +72,8 @@ jobs:
         with:
           name: bundles
           path: |
-            apps/*/dist/cli.js
-            games/*/dist/cli.js
+            apps/*/dist/cli.mjs
+            games/*/dist/cli.mjs
           if-no-files-found: error
 
   runtime-floor:
@@ -112,5 +112,5 @@ jobs:
               echo "FAIL: $bundle did not start cleanly on Node ${{ matrix.node }}"
               exit 1
             fi
-          done < <(find . -name cli.js -type f)
+          done < <(find . -name 'cli.mjs' -type f)
           if [ "$found" -eq 0 ]; then echo "no bundles found"; exit 1; fi

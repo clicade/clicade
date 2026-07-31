@@ -42,8 +42,8 @@ jobs:
         with:
           # Two gates: merging a feature PR only queues a release by opening
           # the version PR; merging that PR is what actually publishes.
-          version: pnpm version
-          publish: pnpm release
+          version: pnpm run changeset:version
+          publish: pnpm run changeset:publish
           commit: 'chore: version packages'
           title: 'chore: version packages'
         env:

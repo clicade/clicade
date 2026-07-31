@@ -29,9 +29,9 @@ for (const scope of ['games', 'apps']) {
     const pkg = JSON.parse(await readFile(manifest, 'utf8'));
     if (pkg.private) continue;
 
-    const bundle = join(dir, 'dist', 'cli.js');
+    const bundle = join(dir, 'dist', 'cli.mjs');
     if (!existsSync(bundle)) {
-      console.error(`MISSING  ${pkg.name} has no dist/cli.js — run the build first`);
+      console.error(`MISSING  ${pkg.name} has no dist/cli.mjs — run the build first`);
       failed = true;
       continue;
     }
