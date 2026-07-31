@@ -13,8 +13,11 @@ jobs:
       matrix:
         # The engine makes platform-specific decisions about color and glyph
         # support, so it gets tested on every platform it claims to handle.
+        # Node versions here are constrained by pnpm 11, which needs >=22.13;
+        # the older runtimes games actually ship against are covered by the
+        # runtime-floor job below.
         os: [ubuntu-latest, windows-latest, macos-latest]
-        node: [20, 24]
+        node: [22, 24]
 
     steps:
       - uses: actions/checkout@v4
@@ -46,10 +49,68 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
-          set -o pipefail
-          output=$(node apps/demo/index.js < /dev/null | cat) && status=0 || status=$?
-          echo "exit=$status output=$output"
-          if [ "$status" -ne 1 ]; then
-            echo "expected exit code 1 on a non-interactive run"
+          out=$(node apps/demo/index.js < /dev/null 2>&1) && status=0 || status=$?
+          echo "$out"
+          if [ "${status:-0}" -ne 1 ] || ! echo "$out" | grep -q "interactive terminal"; then
+            echo "expected a clean non-interactive refusal, got exit ${status:-0}"
             exit 1
           fi
+
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Bundle everything, including the private harness
+        run: node scripts/build.mjs --include-private
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundles
+          path: |
+            apps/*/dist/cli.js
+            games/*/dist/cli.js
+          if-no-files-found: error
+
+  runtime-floor:
+    # Published bundles inline their dependencies, so they run on any Node that
+    # supports the language features esbuild targets — no package manager
+    # needed. This proves the floor we claim in each package's `engines`.
+    needs: bundle
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20]
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: bundles
+      - name: Bundles start and exit cleanly on Node ${{ matrix.node }}
+        shell: bash
+        run: |
+          # upload-artifact strips the common ancestor path, so the layout
+          # inside the artifact depends on how many bundles matched. Find them
+          # rather than assuming a shape.
+          found=0
+          while IFS= read -r bundle; do
+            found=1
+            echo "--- $bundle"
+            out=$(node "$bundle" < /dev/null 2>&1) && status=0 || status=$?
+            echo "$out"
+            # A syntax error or an unsupported language feature also exits 1,
+            # so the exit code alone proves nothing — assert the bundle
+            # actually reached our own refusal path.
+            if [ "${status:-0}" -ne 1 ] || ! echo "$out" | grep -q "interactive terminal"; then
+              echo "FAIL: $bundle did not start cleanly on Node ${{ matrix.node }}"
+              exit 1
+            fi
+          done < <(find . -name cli.js -type f)
+          if [ "$found" -eq 0 ]; then echo "no bundles found"; exit 1; fi

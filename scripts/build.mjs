@@ -16,6 +16,10 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCAN_DIRS = ['games', 'apps'];
 
+// Private packages (the demo harness) are normally skipped, but CI bundles them
+// so the runtime-floor job has something dependency-free to run on old Node.
+const includePrivate = process.argv.includes('--include-private');
+
 /** @returns {Promise<Array<{dir:string,pkg:object}>>} */
 async function publishablePackages() {
   const found = [];
@@ -27,7 +31,7 @@ async function publishablePackages() {
       const manifest = join(dir, 'package.json');
       if (!existsSync(manifest)) continue;
       const pkg = JSON.parse(await readFile(manifest, 'utf8'));
-      if (pkg.private) continue;
+      if (pkg.private && !includePrivate) continue;
       found.push({ dir, pkg });
     }
   }
@@ -61,8 +65,14 @@ for (const { dir, pkg } of targets) {
     format: 'esm',
     minify: true,
     legalComments: 'none',
-    banner: { js: '#!/usr/bin/env node' },
+    // No shebang banner here: esbuild hoists the entry file's own shebang, and
+    // adding one produces a second `#!` on line 2, which is a syntax error.
   });
+
+  const built = await readFile(outfile, 'utf8');
+  if (!built.startsWith('#!')) {
+    throw new Error(`${pkg.name}: entry ${entry} is missing a shebang, so the bin would not be executable`);
+  }
 
   await chmod(outfile, 0o755);
   console.log(`built ${pkg.name}`);
