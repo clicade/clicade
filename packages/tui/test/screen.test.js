@@ -171,3 +171,41 @@ test('no color depth emits no SGR color parameters', () => {
   assert.ok(!out.includes('38;'), 'no foreground color');
   assert.ok(!out.includes('48;'), 'no background color');
 });
+
+test('changing colour depth at runtime affects subsequent output', () => {
+  const { stream, screen, caps } = harness(20, 4);
+  screen.enter();
+
+  screen.clear();
+  screen.put(0, 0, 'hi', { fg: '#ff0000' });
+  const colored = screen.flush();
+  assert.ok(colored.includes('38;'), 'colour is emitted at full depth');
+
+  // What the F2 toggle does: drop the depth, then invalidate so the diff
+  // renderer repaints cells whose characters did not change.
+  caps.colorDepth = 0;
+  screen.invalidate();
+  screen.clear();
+  screen.put(0, 0, 'hi', { fg: '#ff0000' });
+  const mono = screen.flush();
+
+  assert.ok(mono.includes('hi'), 'the frame is repainted');
+  assert.ok(!mono.includes('38;'), 'no colour survives the toggle');
+});
+
+test('invalidate forces a repaint of an otherwise identical frame', () => {
+  const { screen } = harness(20, 4);
+  screen.enter();
+  screen.clear();
+  screen.put(0, 0, 'same');
+  screen.flush();
+
+  screen.clear();
+  screen.put(0, 0, 'same');
+  assert.equal(screen.flush(), '', 'identical frame normally writes nothing');
+
+  screen.invalidate();
+  screen.clear();
+  screen.put(0, 0, 'same');
+  assert.notEqual(screen.flush(), '', 'after invalidate the frame is rewritten');
+});

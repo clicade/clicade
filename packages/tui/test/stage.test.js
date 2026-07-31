@@ -135,3 +135,62 @@ test('fill respects stage bounds', () => {
   const lines = screen.toText().split('\n');
   assert.equal(lines[1].trim(), '####', 'clipped to the 4 remaining columns');
 });
+
+// --- fill mode: world locked to the terminal at launch -------------------
+
+test('fill takes the terminal size at creation', () => {
+  const { stage } = harness(100, 30, { fill: true, minWidth: 72, minHeight: 22 });
+  assert.equal(stage.width, 100);
+  assert.equal(stage.height, 30);
+  assert.equal(stage.originX, 0, 'a filled stage has no letterbox');
+  assert.equal(stage.originY, 0);
+});
+
+test('fill never goes below the minimum playable size', () => {
+  const { stage } = harness(40, 10, { fill: true, minWidth: 72, minHeight: 22 });
+  assert.equal(stage.width, 72);
+  assert.equal(stage.height, 22);
+  assert.equal(stage.tooSmall, true, 'and the game pauses until there is room');
+});
+
+test('a filled world stays locked when the terminal grows', () => {
+  const { stage, screen, stream } = harness(90, 26, { fill: true, minWidth: 72, minHeight: 22 });
+  assert.equal(stage.width, 90);
+
+  // The player zooms out: more cells available.
+  stream.columns = 140;
+  stream.rows = 40;
+  screen.resize();
+  stage.measure();
+
+  assert.equal(stage.width, 90, 'the world does not grow with the terminal');
+  assert.equal(stage.height, 26);
+  assert.equal(stage.tooSmall, false);
+  assert.equal(stage.originX, 25, 'the extra space becomes letterbox');
+});
+
+test('a filled world pauses rather than shrinking when the terminal shrinks', () => {
+  const { stage, screen, stream } = harness(90, 26, { fill: true, minWidth: 72, minHeight: 22 });
+
+  // The player zooms in: fewer cells than the locked world needs.
+  stream.columns = 80;
+  stream.rows = 24;
+  screen.resize();
+  stage.measure();
+
+  assert.equal(stage.width, 90, 'the world still does not change');
+  assert.equal(stage.tooSmall, true, 'play suspends instead of cropping');
+});
+
+test('locking survives a resize round trip', () => {
+  const { stage, screen, stream } = harness(90, 26, { fill: true, minWidth: 72, minHeight: 22 });
+  for (const [c, r] of [[200, 60], [75, 23], [90, 26]]) {
+    stream.columns = c;
+    stream.rows = r;
+    screen.resize();
+    stage.measure();
+    assert.equal(stage.width, 90);
+    assert.equal(stage.height, 26);
+  }
+  assert.equal(stage.tooSmall, false, 'back at the original size, play resumes');
+});

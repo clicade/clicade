@@ -7,13 +7,15 @@
  * and never run again, so cleanup is idempotent and wired to every exit path.
  */
 
-import { detectCaps, unplayableReason } from './caps.js';
+import { detectCaps, unplayableReason, COLOR_NONE } from './caps.js';
 import { createScreen } from './screen.js';
 import { createInput } from './input.js';
 import { createLoop } from './loop.js';
 import { createStage } from './stage.js';
 import { glyphs, centerX } from './layout.js';
 import { strWidth } from './width.js';
+import { parseArgs, FLAG_HELP } from './args.js';
+import { loadPrefs, savePrefs, resolveMono } from './prefs.js';
 
 /**
  * @param {object} opts
@@ -26,7 +28,26 @@ import { strWidth } from './width.js';
  * @param {boolean} [opts.exitOnCtrlC]
  */
 export function createApp(opts = {}) {
+  const args = opts.args ?? parseArgs();
+
+  if (args.help) {
+    process.stdout.write(`${opts.name ?? 'clicade'}\n${FLAG_HELP}\n`);
+    return { run: () => {}, blocked: 'help' };
+  }
+
   const caps = opts.caps ?? detectCaps();
+  const prefs = opts.prefs ?? loadPrefs();
+
+  // Full colour depth is remembered so the monochrome toggle can restore it
+  // rather than re-detecting, which would lose a `--color` override.
+  const fullDepth = caps.colorDepth;
+  let mono = resolveMono({
+    envNoColor: caps.noColor,
+    flag: args.mono,
+    saved: prefs.mono,
+  });
+  if (mono) caps.colorDepth = COLOR_NONE;
+  else if (args.mono === false) caps.colorDepth = fullDepth;
 
   const blocked = unplayableReason(caps);
   if (blocked) {
@@ -75,6 +96,18 @@ export function createApp(opts = {}) {
     setImmediate(() => process.exit(code));
   }
 
+  /**
+   * Flip between colour and monochrome mid-game and remember the choice.
+   * The screen diffs on rendered style strings, so it has to be invalidated —
+   * the cells are otherwise identical and nothing would be rewritten.
+   */
+  function toggleMono() {
+    mono = !mono;
+    caps.colorDepth = mono ? COLOR_NONE : fullDepth;
+    screen.invalidate();
+    savePrefs({ ...prefs, mono });
+  }
+
   const ctx = {
     caps,
     screen,
@@ -82,6 +115,14 @@ export function createApp(opts = {}) {
     input,
     glyphs: g,
     quit,
+    toggleMono,
+    get mono() {
+      return mono;
+    },
+    /** Whether colour is even available, so games can hide the hint if not. */
+    get colorAvailable() {
+      return fullDepth !== COLOR_NONE;
+    },
     get fps() {
       return loop?.fps ?? 0;
     },
@@ -139,6 +180,12 @@ export function createApp(opts = {}) {
       // handled here or the game becomes unkillable.
       if (opts.exitOnCtrlC !== false && key.ctrl && key.name === 'c') {
         quit(0);
+        return;
+      }
+      // F2 is reserved engine-wide for the colour toggle. A function key,
+      // deliberately: every letter is fair game as a gameplay binding.
+      if (key.name === 'f2') {
+        toggleMono();
         return;
       }
       opts.onKey?.(key, ctx);

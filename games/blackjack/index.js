@@ -6,19 +6,26 @@
  * the state machine in src/game.js, the table in src/render.js.
  */
 
-import { createApp } from '@clicade/tui';
+import { createApp, parseArgs, loadPrefs } from '@clicade/tui';
 import { getTheme } from '@clicade/kit';
 import { createGame, MIN_BET, BET_STEP } from './src/game.js';
-import { render, WORLD_W, WORLD_H } from './src/render.js';
+import { render, MIN_W, MIN_H } from './src/render.js';
 
+const args = parseArgs();
+const prefs = loadPrefs();
 const game = createGame();
-const theme = getTheme(process.env.CLICADE_THEME || 'felt');
+const theme = getTheme(args.theme || prefs.theme || process.env.CLICADE_THEME || 'felt');
 
 const app = createApp({
+  name: 'blackjack — clicade',
+  args,
+  prefs,
   fps: 60,
-  stage: { width: WORLD_W, height: WORLD_H },
+  // Take the terminal's size once, at launch, then freeze it. The table fills
+  // the window, and zooming afterwards cannot resize the world.
+  stage: { fill: true, minWidth: MIN_W, minHeight: MIN_H },
   update: (dt) => game.update(dt),
-  render: (_alpha, ctx) => render(ctx.stage, ctx.glyphs, game, theme),
+  render: (_alpha, ctx) => render(ctx.stage, ctx.glyphs, game, theme, ctx),
   onKey,
 });
 

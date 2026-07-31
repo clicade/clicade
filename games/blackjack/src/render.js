@@ -5,48 +5,74 @@
  * same state always produces the same frame — which is what makes the golden
  * frame tests meaningful.
  *
- * All coordinates are logical stage units. Nothing here reads terminal size:
- * resizing or zooming must not move a card.
+ * Layout is derived from the stage, which is locked to the terminal size at
+ * launch and never changes afterwards. Reading stage dimensions is therefore
+ * safe here; reading *terminal* dimensions would not be, and neither the rules
+ * nor `update()` touch either.
  */
 
 import { strWidth } from '@clicade/tui';
 import { renderCard, handWidth, lerp, SIZES } from '@clicade/kit';
 import { OUTCOME_LABEL, handValue } from './rules.js';
 
-export const WORLD_W = 72;
-export const WORLD_H = 22;
+/** Smallest table that stays readable. Below this the game pauses. */
+export const MIN_W = 72;
+export const MIN_H = 22;
 
-/** Cards fly in from here — the shoe, top right. */
-const SHOE = { x: WORLD_W - 9, y: 0 };
+const HAND_GAP = 4;
 
-// Explicit rows rather than arithmetic off the card height: two derived values
-// previously landed on the same line and overprinted each other.
-const DEALER_Y = 3; // cards occupy 3..7
-const PLAYER_Y = 10; // cards occupy 10..14
-const BADGE_Y = 15;
-const STAKE_Y = 16;
-const MESSAGE_Y = 18;
-const CONTROLS_Y = 20;
-const RULES_Y = 21;
+/**
+ * Row positions for a given world.
+ *
+ * The seats sit near the top and the status bar is pinned to the bottom; extra
+ * height is absorbed between them, capped so a very tall terminal doesn't strand
+ * the table at the ceiling.
+ */
+export function layout(w, h) {
+  const offset = Math.min(6, Math.max(0, Math.floor((h - MIN_H) / 2)));
+  const stakeY = 16 + offset;
 
-export function render(stage, g, game, theme) {
-  const { state } = game;
-
-  stage.fill(0, 0, WORLD_W, WORLD_H, ' ', { bg: theme.table });
-
-  drawHeader(stage, g, state, theme);
-  drawShoe(stage, g, state, theme);
-
-  if (state.phase === 'betting') drawBetting(stage, state, theme);
-  else drawSeats(stage, g, state, theme);
-
-  drawMessage(stage, state, theme);
-  drawControls(stage, game, theme);
-  drawRules(stage, theme);
+  return {
+    w,
+    h,
+    dealerLabelY: 2 + offset,
+    dealerY: 3 + offset,
+    playerLabelY: 9 + offset,
+    playerY: 10 + offset,
+    badgeY: 15 + offset,
+    stakeY,
+    // Keep the message near the table rather than pinned to the bottom, or it
+    // drifts far away on a tall terminal.
+    messageY: Math.min(h - 4, stakeY + 2),
+    controlsY: h - 2,
+    rulesY: h - 1,
+    shoe: { x: w - 9, y: 0 },
+  };
 }
 
-function drawHeader(stage, g, state, theme) {
-  stage.put(0, 0, g.hDouble.repeat(WORLD_W), { fg: theme.tableDark, bg: theme.table });
+export function render(stage, g, game, theme, ctx = {}) {
+  const { state } = game;
+  const L = layout(stage.width, stage.height);
+
+  stage.fill(0, 0, L.w, L.h, ' ', { bg: theme.table });
+
+  drawHeader(stage, g, state, theme, L);
+  drawShoe(stage, g, state, theme, L);
+
+  if (state.phase === 'betting') drawBetting(stage, state, theme, L);
+  else drawSeats(stage, g, state, theme, L);
+
+  drawMessage(stage, state, theme, L);
+  drawControls(stage, game, theme, L, ctx);
+  drawRules(stage, theme, L);
+}
+
+function centred(L, text) {
+  return Math.max(0, Math.floor((L.w - strWidth(text)) / 2));
+}
+
+function drawHeader(stage, g, state, theme, L) {
+  stage.put(0, 0, g.hDouble.repeat(L.w), { fg: theme.tableDark, bg: theme.table });
   stage.put(2, 0, ' BLACKJACK ', { fg: theme.accent, bg: theme.table, bold: true });
 
   const chips = `chips ${state.bankroll}`;
@@ -54,27 +80,25 @@ function drawHeader(stage, g, state, theme) {
     ? `bet ${state.hands.reduce((sum, h) => sum + h.bet, 0)}`
     : `bet ${state.bet}`;
   const right = ` ${bet}   ${chips} `;
-  stage.put(WORLD_W - strWidth(right) - 1, 0, right, {
+  stage.put(L.w - strWidth(right) - 1, 0, right, {
     fg: theme.text,
     bg: theme.table,
     bold: true,
   });
 }
 
-function drawShoe(stage, g, state, theme) {
+function drawShoe(stage, g, state, theme, L) {
   if (state.shoeSize === 0) return;
-  // A stub of card backs, so the deal has a visible source.
   for (let i = 0; i < 3; i++) {
-    stage.put(SHOE.x + i, SHOE.y + 2, g.shadeDark, { fg: theme.cardBack, bg: theme.table });
+    stage.put(L.shoe.x + i, L.shoe.y + 2, g.shadeDark, { fg: theme.cardBack, bg: theme.table });
   }
 }
 
-function drawBetting(stage, state, theme) {
-  const centre = Math.floor(WORLD_W / 2);
+function drawBetting(stage, state, theme, L) {
   const lines = [
     ['Place your bet', theme.text, true],
     ['', null, false],
-    [`${state.bet}`, theme.accent, true],
+    [` ${state.bet} chips `, theme.accent, true],
     ['', null, false],
     ['left / right  adjust      enter  deal', theme.textMuted, false],
     ['1 2 3  bet 25 / 50 / 100', theme.textMuted, false],
@@ -82,61 +106,48 @@ function drawBetting(stage, state, theme) {
 
   lines.forEach(([text, color, bold], i) => {
     if (!text) return;
-    const y = DEALER_Y + 2 + i;
-    const size = text === `${state.bet}` ? 3 : 1;
-    const display = size === 3 ? ` ${text} chips ` : text;
-    stage.put(centre - Math.floor(strWidth(display) / 2), y, display, {
-      fg: color,
-      bg: theme.table,
-      bold,
-    });
+    stage.put(centred(L, text), L.dealerY + 2 + i, text, { fg: color, bg: theme.table, bold });
   });
 
   if (state.stats.rounds > 0) {
     const s = state.stats;
     const summary = `${s.rounds} rounds   ${s.won}W ${s.lost}L ${s.pushed}P   ${s.blackjacks} blackjacks   peak ${s.peak}`;
-    stage.put(centre - Math.floor(strWidth(summary) / 2), PLAYER_Y + 4, summary, {
-      fg: theme.textMuted,
-      bg: theme.table,
-    });
+    stage.put(centred(L, summary), L.stakeY, summary, { fg: theme.textMuted, bg: theme.table });
   }
 }
 
-function drawSeats(stage, g, state, theme) {
-  // --- dealer ---
+function drawSeats(stage, g, state, theme, L) {
   const dealerTotal = state.dealer.revealed
     ? totalLabel(state.dealer.cards)
     : upcardLabel(state.dealer.cards);
-  drawSeatLabel(stage, 'DEALER', dealerTotal, DEALER_Y - 1, theme);
+  drawSeatLabel(stage, 'DEALER', dealerTotal, L.dealerLabelY, theme);
 
-  const dealerX = Math.floor((WORLD_W - handWidth(state.dealer.cards.length)) / 2);
-  drawHand(stage, g, state.dealer.cards, dealerX, DEALER_Y, theme, {
+  const dealerX = Math.floor((L.w - handWidth(state.dealer.cards.length)) / 2);
+  drawHand(stage, g, state.dealer.cards, dealerX, L.dealerY, theme, L, {
     flipIndex: state.dealer.revealed ? -1 : 1,
     flip: state.dealer.flip,
   });
 
-  // --- player hands ---
   const hands = state.hands;
-  const totalWidth = hands.reduce((sum, h) => sum + handWidth(h.cards.length), 0) + (hands.length - 1) * 4;
-  let x = Math.floor((WORLD_W - totalWidth) / 2);
+  const totalWidth =
+    hands.reduce((sum, h) => sum + handWidth(h.cards.length), 0) + (hands.length - 1) * HAND_GAP;
+  let x = Math.floor((L.w - totalWidth) / 2);
 
   hands.forEach((hand, i) => {
     const active = i === state.active && state.phase === 'player';
     const w = handWidth(hand.cards.length);
 
     if (hands.length > 1) {
-      const tag = `${i + 1}`;
-      stage.put(x + 1, PLAYER_Y - 1, tag, {
+      stage.put(x + 1, L.playerLabelY, `${i + 1}`, {
         fg: active ? theme.accent : theme.textMuted,
         bg: theme.table,
         bold: active,
       });
     }
 
-    drawHand(stage, g, hand.cards, x, PLAYER_Y, theme, { highlight: active });
+    drawHand(stage, g, hand.cards, x, L.playerY, theme, L, { highlight: active });
 
-    const label = totalLabel(hand.cards);
-    const badge = hand.outcome ? OUTCOME_LABEL[hand.outcome] : label;
+    const badge = hand.outcome ? OUTCOME_LABEL[hand.outcome] : totalLabel(hand.cards);
     const badgeColor = hand.outcome
       ? hand.outcome === 'lose'
         ? theme.bad
@@ -147,31 +158,27 @@ function drawSeats(stage, g, state, theme) {
         ? theme.accent
         : theme.text;
 
-    stage.put(x + Math.floor((w - strWidth(badge)) / 2), BADGE_Y, badge, {
+    stage.put(x + Math.floor((w - strWidth(badge)) / 2), L.badgeY, badge, {
       fg: badgeColor,
       bg: theme.table,
       bold: true,
     });
 
     const stake = `${hand.bet}${hand.doubled ? ' x2' : ''}`;
-    stage.put(x + Math.floor((w - strWidth(stake)) / 2), STAKE_Y, stake, {
+    stage.put(x + Math.floor((w - strWidth(stake)) / 2), L.stakeY, stake, {
       fg: theme.textMuted,
       bg: theme.table,
     });
 
-    x += w + 4;
+    x += w + HAND_GAP;
   });
 
-  drawSeatLabel(stage, 'YOU', '', PLAYER_Y - 1, theme, hands.length > 1);
+  drawSeatLabel(stage, 'YOU', '', L.playerLabelY, theme, hands.length > 1);
 }
 
 function drawSeatLabel(stage, name, total, y, theme, skipName = false) {
-  if (!skipName) {
-    stage.put(2, y, name, { fg: theme.textMuted, bg: theme.table, bold: true });
-  }
-  if (total) {
-    stage.put(2 + name.length + 2, y, total, { fg: theme.text, bg: theme.table });
-  }
+  if (!skipName) stage.put(2, y, name, { fg: theme.textMuted, bg: theme.table, bold: true });
+  if (total) stage.put(2 + name.length + 2, y, total, { fg: theme.text, bg: theme.table });
 }
 
 function totalLabel(cards) {
@@ -183,20 +190,20 @@ function totalLabel(cards) {
 
 /** Before the hole card turns, only the upcard is public information. */
 function upcardLabel(cards) {
-  const up = cards.filter((c) => !c.faceDown);
+  const up = cards.filter((card) => !card.faceDown);
   if (up.length === 0) return '';
   return `showing ${handValue(up).total}`;
 }
 
-function drawHand(stage, g, cards, x, y, theme, opts = {}) {
+function drawHand(stage, g, cards, x, y, theme, L, opts = {}) {
   cards.forEach((card, i) => {
     const last = i === cards.length - 1;
     const slotX = x + i * SIZES.spine.w;
 
     // In-flight cards interpolate from the shoe to their slot.
     const t = card.anim ? card.anim.t : 1;
-    const drawX = Math.round(lerp(SHOE.x, slotX, t));
-    const drawY = Math.round(lerp(SHOE.y, y, t));
+    const drawX = Math.round(lerp(L.shoe.x, slotX, t));
+    const drawY = Math.round(lerp(L.shoe.y, y, t));
 
     // A card still travelling is drawn whole, so it reads as a single card
     // moving rather than a spine that suddenly becomes a face on landing.
@@ -212,59 +219,51 @@ function drawHand(stage, g, cards, x, y, theme, opts = {}) {
   });
 }
 
-function drawMessage(stage, state, theme) {
-  const y = MESSAGE_Y;
+function drawMessage(stage, state, theme, L) {
   if (!state.message) return;
+  const color = state.lastResult > 0 ? theme.good : state.lastResult < 0 ? theme.bad : theme.text;
 
-  const color =
-    state.lastResult > 0 ? theme.good : state.lastResult < 0 ? theme.bad : theme.text;
-
-  stage.put(Math.floor((WORLD_W - strWidth(state.message)) / 2), y, state.message, {
+  stage.put(centred(L, state.message), L.messageY, state.message, {
     fg: state.phase === 'settle' ? color : theme.text,
     bg: theme.table,
     bold: state.phase === 'settle',
   });
 }
 
-function drawControls(stage, game, theme) {
+function drawControls(stage, game, theme, L, ctx) {
   const { state } = game;
-  const y = CONTROLS_Y;
   let keys = [];
 
   if (state.phase === 'betting') {
-    keys = [['←→', 'bet'], ['enter', 'deal'], ['q', 'quit']];
+    keys = [['←→', 'bet'], ['enter', 'deal']];
   } else if (state.phase === 'player') {
     keys = [['h', 'hit'], ['s', 'stand']];
     if (game.canDouble() && state.bankroll >= state.hands[state.active].bet) {
       keys.push(['d', 'double']);
     }
     if (game.canSplit()) keys.push(['p', 'split']);
-    keys.push(['q', 'quit']);
   } else if (state.phase === 'settle') {
-    keys = [['enter', 'next hand'], ['q', 'quit']];
+    keys = [['enter', 'next hand']];
   } else if (state.phase === 'broke') {
-    keys = [['r', 'buy back in'], ['q', 'quit']];
+    keys = [['r', 'buy back in']];
   }
 
-  if (keys.length === 0) return;
+  if (ctx.colorAvailable) keys.push(['F2', ctx.mono ? 'color' : 'mono']);
+  keys.push(['q', 'quit']);
 
   const text = keys.map(([k, label]) => `${k} ${label}`).join('    ');
-  let x = Math.floor((WORLD_W - strWidth(text)) / 2);
+  let x = centred(L, text);
 
   for (const [key, label] of keys) {
-    stage.put(x, y, key, { fg: theme.accent, bg: theme.table, bold: true });
+    stage.put(x, L.controlsY, key, { fg: theme.accent, bg: theme.table, bold: true });
     x += strWidth(key) + 1;
-    stage.put(x, y, label, { fg: theme.textMuted, bg: theme.table });
+    stage.put(x, L.controlsY, label, { fg: theme.textMuted, bg: theme.table });
     x += strWidth(label) + 4;
   }
 }
 
-function drawRules(stage, theme) {
-  // Must fit WORLD_W or centring goes negative and the left end is clipped —
-  // which silently turned "dealer stands" into "stands".
+function drawRules(stage, theme, L) {
+  // Must fit the world or centring goes negative and the left end is clipped.
   const text = 'dealer stands on 17   blackjack pays 3:2   6 decks   one split';
-  stage.put(Math.floor((WORLD_W - strWidth(text)) / 2), RULES_Y, text, {
-    fg: theme.tableDark,
-    bg: theme.table,
-  });
+  stage.put(centred(L, text), L.rulesY, text, { fg: theme.tableDark, bg: theme.table });
 }

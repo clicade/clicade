@@ -62,6 +62,8 @@ export function detectCaps(opts = {}) {
   return {
     isTTY,
     colorDepth,
+    /** NO_COLOR was set explicitly, which no flag or preference may override. */
+    noColor: Boolean(env.NO_COLOR != null && env.NO_COLOR !== ''),
     unicode,
     /** Alt-screen buffer: safe anywhere we have a real terminal that isn't `dumb`. */
     altScreen: isTTY && !isDumb,

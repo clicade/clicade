@@ -22,8 +22,15 @@ import { charWidth } from './width.js';
 
 export function createStage(opts = {}) {
   const screen = opts.screen;
-  const width = opts.width;
-  const height = opts.height;
+
+  // `fill` takes the terminal's size once, at launch, then freezes it. That is
+  // what lets a game use the whole window without handing the player a resize
+  // handle on the rules: after this moment the world never changes size again.
+  const minWidth = opts.minWidth ?? opts.width ?? 1;
+  const minHeight = opts.minHeight ?? opts.height ?? 1;
+
+  const width = opts.fill ? Math.max(minWidth, screen.cols) : opts.width;
+  const height = opts.fill ? Math.max(minHeight, screen.rows) : opts.height;
 
   let ox = 0;
   let oy = 0;

@@ -23,25 +23,46 @@ Most `npx` games fail the same way: they prompt with `readline` so you type an a
 | Playable at 80×24 | golden-frame tests |
 | Terminal size can't change outcomes | fixed logical stage in `packages/tui/src/stage.js` |
 
+## Colour
+
+Every game accepts the same flags:
+
+```bash
+npx @clicade/blackjack --mono        # monochrome
+npx @clicade/blackjack --color       # force colour on
+npx @clicade/blackjack --theme noir  # felt | paper | noir
+```
+
+Press **F2** in any game to switch between colour and monochrome live. The choice is saved globally, so it applies to every clicade game from then on — a player who wants monochrome shouldn't have to tell each game separately. `NO_COLOR` overrides everything and cannot be undone by a flag or a keypress.
+
+F2 is reserved engine-wide for this. Function keys, deliberately: every letter stays available as a gameplay binding.
+
 ## Resize and zoom must not change the game
 
 Terminal zoom cannot be blocked — font size belongs to the emulator, and no escape sequence locks it. Zooming simply changes `cols`/`rows` and fires a resize, exactly like dragging the window.
 
-So games are built to be invariant to it. Simulation runs in **fixed logical units**; the terminal is only a camera:
+So games take the terminal's size **once, at launch, and then freeze it**. You get the whole window, and zoom afterwards can't resize the world:
 
 ```js
 createApp({
-  stage: { width: 72, height: 22 },   // the world. never changes.
+  // Locked to the terminal at startup. Never changes again.
+  stage: { fill: true, minWidth: 72, minHeight: 22 },
   update() { /* only logical coords — never screen.cols */ },
   render(_alpha, { stage }) { stage.put(3, 1, 'x') },
 })
 ```
 
-- `stage.put` / `stage.fill` take logical coordinates and clip to the world
-- resize only re-centres the letterbox; logical positions are untouched
-- a terminal too small to show the whole stage **pauses play** rather than cropping — a cropped view is unplayable and, in anything with hidden information, an unfair advantage
+After launch:
 
-The rule: **if `update()` reads terminal dimensions, it's a bug.** A player pressing Ctrl+`-` must never be able to move a piece, reveal a cell, or change a spawn.
+| Player does | Result |
+|---|---|
+| Zooms out / enlarges the window | World stays put; the extra space becomes letterbox |
+| Zooms in / shrinks below the locked size | **Play pauses** with a resize prompt, then resumes exactly where it left off |
+| Anything else | Nothing. The world is fixed. |
+
+Cropping is never an option — a cropped view is unplayable and, in anything with hidden information, an unfair advantage.
+
+The rule: **if `update()` reads terminal dimensions, it's a bug.** A player pressing Ctrl+`-` must never be able to move a piece, reveal a cell, or change a spawn. Reading the *stage* is fine, because the stage is frozen.
 
 ## Layout
 
