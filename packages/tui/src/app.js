@@ -11,7 +11,9 @@ import { detectCaps, unplayableReason } from './caps.js';
 import { createScreen } from './screen.js';
 import { createInput } from './input.js';
 import { createLoop } from './loop.js';
-import { glyphs } from './layout.js';
+import { createStage } from './stage.js';
+import { glyphs, centerX } from './layout.js';
+import { strWidth } from './width.js';
 
 /**
  * @param {object} opts
@@ -36,6 +38,11 @@ export function createApp(opts = {}) {
   const screen = createScreen({ caps });
   const input = createInput({ caps });
   const g = glyphs(caps);
+
+  // A fixed logical playfield, if the game declares one. Games that use it can
+  // never have their simulation influenced by terminal size — including by the
+  // player zooming mid-game.
+  const stage = opts.stage ? createStage({ screen, ...opts.stage }) : null;
 
   let cleanedUp = false;
   let loop = null;
@@ -71,13 +78,40 @@ export function createApp(opts = {}) {
   const ctx = {
     caps,
     screen,
+    stage,
     input,
     glyphs: g,
     quit,
     get fps() {
       return loop?.fps ?? 0;
     },
+    /** True while play is suspended because the terminal cannot show the stage. */
+    get paused() {
+      return Boolean(stage?.tooSmall);
+    },
   };
+
+  /**
+   * Shown instead of the game when the window is too small. Play is suspended
+   * rather than cropped — a cropped view is both unplayable and an unfair
+   * advantage in anything with hidden information.
+   */
+  function renderTooSmall() {
+    screen.clear();
+    const lines = [
+      'terminal too small',
+      `needs ${stage.width}x${stage.height}`,
+      `have  ${screen.cols}x${screen.rows}`,
+      '',
+      'resize or zoom out to continue',
+    ];
+    const top = Math.max(0, Math.floor((screen.rows - lines.length) / 2));
+    lines.forEach((line, i) => {
+      if (top + i < screen.rows) {
+        screen.put(centerX(screen.cols, strWidth(line)), top + i, line, { bold: i === 0 });
+      }
+    });
+  }
 
   function onResize() {
     screen.resize();
@@ -96,6 +130,8 @@ export function createApp(opts = {}) {
     process.stdout.on('resize', onResize);
 
     screen.enter();
+    // Measure before the first update, or one tick runs against stale offsets.
+    stage?.measure();
     input.start();
 
     input.onKey((key) => {
@@ -112,9 +148,16 @@ export function createApp(opts = {}) {
 
     loop = createLoop({
       fps: opts.fps ?? 60,
-      update: (dt) => opts.update?.(dt, ctx),
+      update: (dt) => {
+        // Suspended while the stage doesn't fit, so time doesn't advance
+        // behind a screen the player can't see.
+        if (stage?.tooSmall) return;
+        opts.update?.(dt, ctx);
+      },
       render: (alpha) => {
-        opts.render?.(alpha, ctx);
+        stage?.measure();
+        if (stage?.tooSmall) renderTooSmall();
+        else opts.render?.(alpha, ctx);
         screen.flush();
       },
     });

@@ -21,6 +21,27 @@ Most `npx` games fail the same way: they prompt with `readline` so you type an a
 | Works on every terminal | capability ladder in `packages/tui/src/caps.js` |
 | Never leaves your shell broken | single idempotent cleanup path in `packages/tui/src/app.js` |
 | Playable at 80×24 | golden-frame tests |
+| Terminal size can't change outcomes | fixed logical stage in `packages/tui/src/stage.js` |
+
+## Resize and zoom must not change the game
+
+Terminal zoom cannot be blocked — font size belongs to the emulator, and no escape sequence locks it. Zooming simply changes `cols`/`rows` and fires a resize, exactly like dragging the window.
+
+So games are built to be invariant to it. Simulation runs in **fixed logical units**; the terminal is only a camera:
+
+```js
+createApp({
+  stage: { width: 72, height: 22 },   // the world. never changes.
+  update() { /* only logical coords — never screen.cols */ },
+  render(_alpha, { stage }) { stage.put(3, 1, 'x') },
+})
+```
+
+- `stage.put` / `stage.fill` take logical coordinates and clip to the world
+- resize only re-centres the letterbox; logical positions are untouched
+- a terminal too small to show the whole stage **pauses play** rather than cropping — a cropped view is unplayable and, in anything with hidden information, an unfair advantage
+
+The rule: **if `update()` reads terminal dimensions, it's a bug.** A player pressing Ctrl+`-` must never be able to move a piece, reveal a cell, or change a spawn.
 
 ## Layout
 
