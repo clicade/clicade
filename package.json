@@ -9,7 +9,7 @@
   },
   "scripts": {
     "demo": "node apps/demo/index.js",
-    "test": "node --test packages/**/test/*.test.js",
+    "test": "node --test \"packages/**/test/*.test.js\" \"games/**/test/*.test.js\"",
     "build": "node scripts/build.mjs",
     "check:size": "node scripts/size-check.mjs",
     "check:deps": "node scripts/dep-check.mjs",

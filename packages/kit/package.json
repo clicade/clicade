@@ -1,0 +1,14 @@
+{
+  "name": "@clicade/kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Presentation layer: card rendering, tweening, seeded RNG, themes. Bundled into games, never published.",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@clicade/tui": "workspace:*"
+  }
+}

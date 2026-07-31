@@ -21,6 +21,21 @@ importers:
         specifier: workspace:*
         version: link:../../packages/tui
 
+  games/blackjack:
+    devDependencies:
+      '@clicade/kit':
+        specifier: workspace:*
+        version: link:../../packages/kit
+      '@clicade/tui':
+        specifier: workspace:*
+        version: link:../../packages/tui
+
+  packages/kit:
+    dependencies:
+      '@clicade/tui':
+        specifier: workspace:*
+        version: link:../tui
+
   packages/tui: {}
 
 packages:

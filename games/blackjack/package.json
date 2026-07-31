@@ -1,0 +1,30 @@
+{
+  "name": "@clicade/blackjack",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Blackjack in your terminal. Zero dependencies, real table, no readline prompts.",
+  "keywords": ["blackjack", "cli", "game", "terminal", "tui", "cards", "clicade"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/clicade/clicade.git",
+    "directory": "games/blackjack"
+  },
+  "homepage": "https://github.com/clicade/clicade/tree/main/games/blackjack",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "blackjack": "./dist/cli.js"
+  },
+  "main": "./dist/cli.js",
+  "source": "./index.js",
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@clicade/kit": "workspace:*",
+    "@clicade/tui": "workspace:*"
+  }
+}

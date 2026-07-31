@@ -38,10 +38,18 @@ async function publishablePackages() {
   return found;
 }
 
+/**
+ * Published packages point `bin` and `main` at dist/cli.js — the file this
+ * script produces — so neither can be the entry. Source comes from an explicit
+ * `source` field, falling back to index.js.
+ */
 function entryFor(pkg, dir) {
-  const bin = typeof pkg.bin === 'string' ? pkg.bin : Object.values(pkg.bin ?? {})[0];
-  const rel = bin ?? pkg.main ?? 'index.js';
-  return join(dir, rel.replace(/^\.\//, ''));
+  const rel = (pkg.source ?? 'index.js').replace(/^\.\//, '');
+  const entry = join(dir, rel);
+  if (!existsSync(entry)) {
+    throw new Error(`${pkg.name}: entry ${rel} not found — set "source" in its package.json`);
+  }
+  return entry;
 }
 
 const targets = await publishablePackages();
