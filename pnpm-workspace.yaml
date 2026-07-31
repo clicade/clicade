@@ -1,0 +1,7 @@
+packages:
+  - packages/*
+  - games/*
+  - apps/*
+# esbuild ships a platform-specific binary and needs its postinstall to run.
+allowBuilds:
+  esbuild: true

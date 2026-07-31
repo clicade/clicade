@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The engine makes platform-specific decisions about color and glyph
+        # support, so it gets tested on every platform it claims to handle.
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [20, 24]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Unit and golden-frame tests
+        run: pnpm test
+
+      - name: Build bundles
+        run: pnpm build
+
+      - name: Enforce zero runtime dependencies
+        run: pnpm check:deps
+
+      - name: Enforce bundle size budget
+        run: pnpm check:size
+
+      - name: Non-TTY runs must exit cleanly, not hang
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -o pipefail
+          output=$(node apps/demo/index.js < /dev/null | cat) && status=0 || status=$?
+          echo "exit=$status output=$output"
+          if [ "$status" -ne 1 ]; then
+            echo "expected exit code 1 on a non-interactive run"
+            exit 1
+          fi

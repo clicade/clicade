@@ -1,0 +1,11 @@
+{
+  "name": "@clicade/tui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Zero-dependency terminal engine: alt-screen diff renderer, raw input, fixed-timestep loop, capability degradation.",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  }
+}

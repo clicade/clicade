@@ -1,0 +1,6 @@
+# Keep the repo LF everywhere. CI runs on Linux, macOS and Windows, and golden
+# frame tests compare exact strings — mixed line endings would fail on one OS
+# and pass on another.
+* text=auto eol=lf
+*.png binary
+*.gif binary
