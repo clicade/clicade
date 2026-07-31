@@ -29,7 +29,11 @@ const HAND_GAP = 4;
  * the table at the ceiling.
  */
 export function layout(w, h) {
-  const offset = Math.min(6, Math.max(0, Math.floor((h - MIN_H) / 2)));
+  // Centre the seats between the header rule and the status bar. The block runs
+  // from row 2 to the message row, 18 rows deep; the space left over after the
+  // bottom two rows is split evenly above and below it.
+  const BLOCK_ROWS = 18;
+  const offset = Math.max(0, Math.floor((h - 3 - BLOCK_ROWS) / 2));
   const stakeY = 16 + offset;
 
   return {

@@ -194,3 +194,48 @@ test('locking survives a resize round trip', () => {
   }
   assert.equal(stage.tooSmall, false, 'back at the original size, play resumes');
 });
+
+test('fill locks to the terminal even when built before the screen is entered', () => {
+  // This is the real construction order inside createApp: the stage exists
+  // before enter() allocates the screen buffers. Reading screen.cols in the
+  // stage constructor gave 0, which locked every game to the minimum size and
+  // drew a small box in the middle of a maximised terminal.
+  const stream = { isTTY: true, columns: 160, rows: 48, write() {}, on() {} };
+  const caps = detectCaps({
+    env: { TERM: 'xterm-256color' },
+    stream,
+    input: { setRawMode() {} },
+    platform: 'linux',
+  });
+  const screen = createScreen({ stream, caps });
+
+  const stage = createStage({ screen, fill: true, minWidth: 72, minHeight: 22 });
+  screen.enter();
+  stage.measure();
+
+  assert.equal(stage.width, 160, 'the world fills the terminal, not the minimum');
+  assert.equal(stage.height, 48);
+  assert.equal(stage.tooSmall, false);
+});
+
+test('the size captured at lock time is the one that sticks', () => {
+  const stream = { isTTY: true, columns: 120, rows: 40, write() {}, on() {} };
+  const caps = detectCaps({
+    env: { TERM: 'xterm-256color' },
+    stream,
+    input: { setRawMode() {} },
+    platform: 'linux',
+  });
+  const screen = createScreen({ stream, caps });
+  const stage = createStage({ screen, fill: true, minWidth: 72, minHeight: 22 });
+
+  screen.enter();
+  stage.measure();
+  assert.equal(stage.width, 120);
+
+  // Every later measure must not re-lock, however the terminal changes.
+  stream.columns = 200;
+  screen.resize();
+  stage.measure();
+  assert.equal(stage.width, 120, 'locking happens exactly once');
+});

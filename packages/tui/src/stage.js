@@ -23,21 +23,36 @@ import { charWidth } from './width.js';
 export function createStage(opts = {}) {
   const screen = opts.screen;
 
-  // `fill` takes the terminal's size once, at launch, then freezes it. That is
-  // what lets a game use the whole window without handing the player a resize
-  // handle on the rules: after this moment the world never changes size again.
+  // `fill` takes the terminal's size once, then freezes it. That is what lets a
+  // game use the whole window without handing the player a resize handle on the
+  // rules: after that moment the world never changes size again.
+  //
+  // The size is captured on the first measure(), not here. A screen has no
+  // dimensions until enter() allocates its buffers, and the stage is built
+  // before that — reading screen.cols in this constructor yields 0, which
+  // silently locked every game to the minimum size.
   const minWidth = opts.minWidth ?? opts.width ?? 1;
   const minHeight = opts.minHeight ?? opts.height ?? 1;
 
-  const width = opts.fill ? Math.max(minWidth, screen.cols) : opts.width;
-  const height = opts.fill ? Math.max(minHeight, screen.rows) : opts.height;
+  let width = opts.fill ? minWidth : opts.width;
+  let height = opts.fill ? minHeight : opts.height;
+  let locked = !opts.fill;
 
   let ox = 0;
   let oy = 0;
   let tooSmall = false;
 
-  /** Recompute letterbox offsets. Call once per frame, before drawing. */
+  /**
+   * Recompute letterbox offsets. Call once per frame, before drawing.
+   * The first call is also what locks a `fill` world to the terminal size.
+   */
   function measure() {
+    if (!locked && screen.cols > 0 && screen.rows > 0) {
+      width = Math.max(minWidth, screen.cols);
+      height = Math.max(minHeight, screen.rows);
+      locked = true;
+    }
+
     tooSmall = screen.cols < width || screen.rows < height;
     ox = Math.max(0, Math.floor((screen.cols - width) / 2));
     oy = Math.max(0, Math.floor((screen.rows - height) / 2));
@@ -81,8 +96,14 @@ export function createStage(opts = {}) {
     measure,
     put,
     fill,
-    width,
-    height,
+    // Getters, not copies: a `fill` world resolves its size on the first
+    // measure(), and plain properties captured here would stay at the minimum.
+    get width() {
+      return width;
+    },
+    get height() {
+      return height;
+    },
     get tooSmall() {
       return tooSmall;
     },
