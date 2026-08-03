@@ -196,3 +196,73 @@ test('q quits and shift+a autoplays', () => {
   onKey({ name: 'q', shift: false, ctrl: false, alt: false }, { quit: () => quits++ }, game);
   assert.equal(quits, 1);
 });
+
+// --- turning the stock over ------------------------------------------------
+
+test('d cycles the whole stock and comes back round', () => {
+  // Reported as "I can't cycle through the card pile". The mechanism was fine;
+  // nothing on screen said the key existed. This asserts the cycle itself so a
+  // regression in the mechanism cannot hide behind that.
+  const { game, press } = table();
+  const { state } = game;
+  const total = state.stock.length;
+  assert.ok(total > 0, 'the deal left nothing in the stock');
+
+  while (state.stock.length) press('d');
+  assert.equal(state.waste.length, total, 'the whole stock reached the waste');
+
+  press('d');
+  assert.equal(state.stock.length, total, 'the waste did not go back to the stock');
+  assert.equal(state.waste.length, 0);
+  assert.equal(state.passes, 1);
+});
+
+test('the pile can be cycled again and again', () => {
+  const { game, press } = table();
+  const { state } = game;
+  for (let pass = 0; pass < 3; pass++) {
+    while (state.stock.length) press('d');
+    press('d');
+  }
+  assert.equal(state.passes, 3, 'cycling stopped working after a pass or two');
+});
+
+test('space on the stock turns it over, so the cursor alone is enough', () => {
+  // A player who never discovers `d` still has to be able to play.
+  const { game, press } = table((g) => {
+    g.state.cursor = { row: 'tableau', col: 0 };
+  });
+  const { state } = game;
+
+  press('up');
+  assert.deepEqual(state.cursor, { row: 'top', col: 0 }, 'up from column 0 lands on the stock');
+
+  const before = state.stock.length;
+  press('space');
+  assert.ok(state.stock.length < before, 'space on the stock drew nothing');
+  assert.equal(state.selection, null, 'drawing must not leave a card in hand');
+});
+
+test('space recycles once the stock is empty', () => {
+  const { game, press } = table((g) => {
+    g.state.cursor = { row: 'top', col: 0 };
+  });
+  const { state } = game;
+  while (state.stock.length) press('space');
+  assert.equal(state.waste.length > 0, true);
+
+  press('space');
+  assert.ok(state.stock.length > 0, 'the empty stock refused to recycle');
+});
+
+test('recycling can be undone like any other move', () => {
+  const { game, press } = table();
+  const { state } = game;
+  while (state.stock.length) press('d');
+  press('d');
+  assert.equal(state.passes, 1);
+
+  press('u');
+  assert.equal(state.passes, 0, 'undo left the pass count wrong');
+  assert.equal(state.stock.length, 0, 'undo did not put the waste back');
+});

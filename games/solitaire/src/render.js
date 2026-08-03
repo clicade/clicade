@@ -175,7 +175,10 @@ function drawStock(stage, g, state, theme, L) {
   const x = L.colX(STOCK_COL);
 
   if (state.stock.length === 0) {
-    drawSlot(stage, g, x, L.topY, theme, state.waste.length ? g.arrowL : g.cross2, L);
+    // A recycle mark, not a left arrow. The arrow read as "go back" on a pile
+    // where there is no back to go to, so an empty stock looked finished
+    // rather than ready to turn over.
+    drawSlot(stage, g, x, L.topY, theme, state.waste.length ? g.recycle : g.cross2, L);
   } else {
     renderCard(stage, g, x, L.topY, null, { theme, faceUp: false, shadow: true, size: L.card });
   }
@@ -370,12 +373,20 @@ export function controlsFor(game, ctx = {}, width = Infinity) {
   const { state } = game;
   const held = Boolean(state.selection);
 
-  // Array order is display order; `rank` only decides what gets dropped first.
   const g = g_(ctx);
+  // Turning the stock over is the one verb with no discoverable alternative:
+  // every other move can be stumbled into by pointing at a card, but a player
+  // who does not know about `d` sees a pile that will not move. It was missing
+  // from this list entirely, which is exactly how that happened.
+  const stockLabel = state.stock.length ? 'draw' : 'recycle';
+  const canTurn = state.stock.length > 0 || state.waste.length > 0;
+
+  // Array order is display order; `rank` only decides what gets dropped first.
   const entries = [
     { rank: 0, key: `${g.arrowL}${g.arrowR}`, label: 'move' },
     { rank: 0, key: `${g.arrowU}${g.arrowD}`, label: held ? 'take more' : 'row' },
     { rank: 0, key: 'space', label: held ? 'drop' : 'pick up' },
+    { rank: 0, key: 'd', label: stockLabel, when: canTurn && !held },
     { rank: 1, key: 'tab', label: 'row', when: held },
     { rank: 1, key: 'esc', label: 'cancel', when: held },
     { rank: 2, key: 'a', label: 'foundation' },

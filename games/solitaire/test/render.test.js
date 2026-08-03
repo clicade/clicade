@@ -116,8 +116,15 @@ test('the win banner appears once the foundations are full', () => {
 
 // --- footer trimming -------------------------------------------------------
 
-const fakeGame = (held, canUndo) => ({
-  state: { selection: held ? { zone: 'tableau', index: 0, from: 0 } : null },
+// Carries a stock and a waste because the real one does, and the footer now
+// asks about them. A double thin enough to omit them would only prove that the
+// footer runs against a table that cannot exist.
+const fakeGame = (held, canUndo, { stock = 10, waste = 0 } = {}) => ({
+  state: {
+    selection: held ? { zone: 'tableau', index: 0, from: 0 } : null,
+    stock: new Array(stock).fill(null),
+    waste: new Array(waste).fill(null),
+  },
   canUndo,
 });
 
@@ -157,6 +164,73 @@ test('a wide window shows everything', () => {
     'mono',
     'quit',
   ]);
+});
+
+// --- turning the stock over ------------------------------------------------
+
+test('the footer says how to draw', () => {
+  // It said nothing at all, which is how a player ends up believing the pile
+  // is stuck: every other move can be found by pointing at a card, this one
+  // cannot.
+  const keys = controlsFor(fakeGame(false, false), {}, 200);
+  assert.ok(
+    keys.some(([key, label]) => key === 'd' && label === 'draw'),
+    `no draw hint in: ${keys.map(([k, l]) => `${k} ${l}`).join(', ')}`,
+  );
+});
+
+test('an empty stock offers to recycle rather than to draw', () => {
+  const keys = controlsFor(fakeGame(false, false, { stock: 0, waste: 12 }), {}, 200);
+  assert.ok(keys.some(([key, label]) => key === 'd' && label === 'recycle'));
+  assert.ok(!keys.some(([, label]) => label === 'draw'));
+});
+
+test('with nothing left to turn over, the hint goes away', () => {
+  // The rule this game already follows: hints that do not apply are absent,
+  // not greyed out.
+  const keys = controlsFor(fakeGame(false, false, { stock: 0, waste: 0 }), {}, 200);
+  assert.ok(!keys.some(([key]) => key === 'd'));
+});
+
+test('the draw hint survives a window narrow enough to trim the others', () => {
+  for (let w = MIN_W; w <= 120; w += 4) {
+    const keys = controlsFor(fakeGame(false, false), {}, w);
+    assert.ok(
+      keys.some(([key]) => key === 'd'),
+      `the draw hint was trimmed away at ${w} columns`,
+    );
+  }
+});
+
+test('an empty stock is marked as recyclable, not as a way back', () => {
+  const { text } = frame(90, 32, {
+    act: (game) => {
+      while (game.state.stock.length) {
+        game.draw();
+        game.update(1);
+      }
+    },
+  });
+
+  // Only the board, not the footer — `◂▸ move` legitimately lives down there.
+  const L = layout(90, 32);
+  const board = text
+    .split('\n')
+    .slice(L.topY, L.topY + L.cardH)
+    .join('\n');
+
+  assert.ok(board.includes('↻'), 'no recycle mark on a stock that can be turned over');
+  assert.ok(!board.includes('◂'), 'a left arrow reads as "go back", and there is no back');
+});
+
+test('a stock and waste that are both empty is not offered as recyclable', () => {
+  const { text } = frame(90, 32, {
+    act: (game) => {
+      game.state.stock = [];
+      game.state.waste = [];
+    },
+  });
+  assert.ok(!text.includes('↻'), 'offered a recycle with nothing to recycle');
 });
 
 test('hints that do not apply are absent rather than greyed out', () => {
@@ -217,3 +291,4 @@ test('compact buys width, and barely any height', () => {
   assert.ok(saved.width >= 15, `only ${saved.width} columns saved`);
   assert.ok(saved.height <= 2, `${saved.height} rows saved — the copy should say so`);
 });
+
