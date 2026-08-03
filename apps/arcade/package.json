@@ -1,6 +1,6 @@
 {
   "name": "clicade",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "description": "Terminal games that are actually good. An arcade you can run with npx.",
   "keywords": [
