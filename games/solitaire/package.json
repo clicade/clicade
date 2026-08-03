@@ -1,6 +1,6 @@
 {
   "name": "@clicade/solitaire",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "description": "Klondike solitaire in your terminal. Zero dependencies, real cards, unlimited undo.",
   "keywords": [
