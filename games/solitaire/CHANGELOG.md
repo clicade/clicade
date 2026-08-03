@@ -1,25 +1,8 @@
-# clicade
+# @clicade/solitaire
 
-## 0.2.0
+## 0.1.0
 
 ### Minor Changes
-
-- b720b98: Add mouse support, and make blackjack's actions clickable buttons.
-
-  Blackjack now asks "What would you like to do?" above a row of buttons — hit, stand, double, split — each carrying the key that performs it. Click one, or press its key. The key is always on the face: the mouse is an addition to the keyboard, never a replacement.
-
-  Unavailable actions are shown greyed rather than hidden, which is the opposite of the rule solitaire follows and is deliberate. In solitaire a missing hint is a key that does nothing. Here the four actions _are_ blackjack, and seeing that split exists — greyed, because this hand is not a pair — is how the table teaches the game.
-
-  Reporting uses SGR mode (1006) rather than the original X10 encoding, which packs each coordinate into a single byte and therefore cannot address a column past 223, reachable on any maximised window. Hover is included so a button answers the pointer instead of looking like a picture of one.
-
-  Turning the mouse on takes the terminal's own text selection away from the player, so **F3** switches it off and on and the choice is remembered.
-
-  Two things this fixed on the way:
-
-  - An SGR mouse report does not match the CSI pattern, because of its `<`. It fell through to "escape plus a character is alt" and sprayed `alt+[`, `<`, `0`, `;` … as keystrokes. Any terminal that volunteered mouse reports could play a card by being clicked. Reports are now recognised whether or not anything is listening for them.
-  - Mouse reporting is disabled on every exit path, including a crash. A terminal left reporting prints coordinates into the shell on every mouse movement, which looks like the shell itself is broken.
-
-  Buttons record their clickable region from the same numbers that drew them, in the same call, so a button cannot be drawn in one place and clickable in another. Bordered buttons appear where the window has spare height; below 26 rows the same buttons draw flat on the row the hints already used, so the minimum window does not grow and 80x24 still plays.
 
 - e308d96: Add first-run setup, a settings screen, and motion to the arcade.
 
@@ -56,22 +39,28 @@
 
   Also fixed: the chosen option in setup was marked only by colour, so in monochrome nothing showed which was selected. It is now drawn with a doubled border. The settings header no longer claims settings apply everywhere — Size does not reach blackjack, and the fit report can now show that on screen.
 
+- 4d97bed: Turn one card at a time, or three.
+
+  Reported as "it shows 3 cards at once but I can only pick the top card". That is genuinely how draw-three Klondike works — two of every three stay buried until the pass comes round again — but the screen was showing three cards while only one of them could be picked up, which reads as broken rather than as a rule.
+
+  Both halves are fixed. Solitaire now turns **one** card by default, so every card in the stock becomes reachable in order. And the waste fan now shows only what the current draw actually exposed, so it never puts a card on screen that cannot be picked up.
+
+  Press `t` for three, or launch with `--draw 3`. The choice is remembered. Changing it applies to the next draw rather than forcing a new deal — throwing away a game in progress to change a rule is the worse outcome.
+
+  The footer names what the key will do (`t turn three` while turning one) rather than what is currently set, since a hint reading "turn one" while already turning one is the kind of label people press twice to decode.
+
 ### Patch Changes
 
-- 6113aab: Drop the `./` prefix from `bin` paths. npm normalised it away on publish and warned that the entry "was invalid and removed" — misleading wording for what is only a rewrite, but the warning is noise on every release.
+- 088b9da: Fix cards picked up from the waste being impossible to play onto the tableau.
 
-## 0.1.0
+  Once anything was held, up and down were consumed by resizing the run being carried, so the cursor could never cross to the other row. A card taken from the waste could only ever reach a foundation, and a tableau card could only reach a foundation via the `a` shortcut. Up and down now resize the run first and change rows once it cannot resize further, and `tab` always crosses rows.
 
-### Minor Changes
+  Crossing rows also landed on the wrong column: the cursor moved by slot index while the board draws by column, so leaving a foundation put the cursor one column to its left. Both now read the same layout constant.
 
-- a0d18ff: Add the arcade launcher: `npx clicade` opens a menu of games, `npx clicade blackjack` skips it.
+- 259d459: Say how to turn the stock over.
 
-  Games are bundled into the launcher rather than spawned, so picking one starts instantly instead of costing a second network round trip. Quitting a game returns to the menu; Ctrl-C ends the session.
+  Reported as "I can't cycle through the card pile". The mechanism was never broken — `d` drew, space on the stock drew, and an empty stock recycled the waste. Nothing on screen said so.
 
-  Also:
+  The footer listed nine hints and not one of them was the stock. That matters more here than for any other verb: every other move can be found by pointing the cursor at a card and pressing space, but a pile that will not move looks like a pile that is finished. The footer now shows `d draw`, switching to `d recycle` once the stock empties, and disappearing only when there is genuinely nothing left to turn over. It is ranked so a narrow window trims something else first.
 
-  - `app.run()` now resolves with `{ code, reason }` instead of ending the process unconditionally. Apps declare `standalone`; embedded ones hand control back to their caller.
-  - Apps remove the process listeners they add, so a long session of launching games no longer leaks handlers.
-  - New `onQuit` hook runs on every exit path, including Ctrl-C — blackjack's stats are now saved when you interrupt it, which they previously were not.
-  - Arrow hints in the footer come from the glyph set, so ASCII-only terminals show `<>` and `^v` rather than replacement boxes.
-  - Saves and preferences honour `CLICADE_CONFIG_DIR`, and resolve their path per call rather than at import.
+  An empty stock was also marked with a left arrow, which reads as "go back" on a pile with no back to go to. It is now a recycle mark (`↻`, or `O` where Unicode is unavailable).
