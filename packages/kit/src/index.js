@@ -12,4 +12,6 @@ export {
   renderCard,
   renderHand,
   handWidth,
+  renderPile,
+  pileOffsets,
 } from './card.js';

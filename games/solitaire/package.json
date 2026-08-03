@@ -1,30 +1,31 @@
 {
-  "name": "clicade",
-  "version": "0.1.0",
+  "name": "@clicade/solitaire",
+  "version": "0.0.0",
   "type": "module",
-  "description": "Terminal games that are actually good. An arcade you can run with npx.",
+  "description": "Klondike solitaire in your terminal. Zero dependencies, real cards, unlimited undo.",
   "keywords": [
+    "solitaire",
+    "klondike",
+    "patience",
     "cli",
     "game",
-    "games",
     "terminal",
     "tui",
-    "arcade",
-    "blackjack",
+    "cards",
     "clicade"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/clicade/clicade.git",
-    "directory": "apps/arcade"
+    "directory": "games/solitaire"
   },
-  "homepage": "https://github.com/clicade/clicade",
+  "homepage": "https://github.com/clicade/clicade/tree/main/games/solitaire",
   "engines": {
     "node": ">=18"
   },
   "bin": {
-    "clicade": "dist/cli.mjs"
+    "solitaire": "dist/cli.mjs"
   },
   "main": "./dist/cli.mjs",
   "source": "./index.js",
@@ -35,9 +36,7 @@
     "access": "public"
   },
   "devDependencies": {
-    "@clicade/blackjack": "workspace:*",
     "@clicade/kit": "workspace:*",
-    "@clicade/solitaire": "workspace:*",
     "@clicade/tui": "workspace:*"
   }
 }

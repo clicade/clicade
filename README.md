@@ -5,6 +5,7 @@ Terminal games that are actually good. Run one with `npx`, play it in two minute
 ```bash
 npx clicade                # the arcade launcher
 npx @clicade/blackjack     # or go straight to a game
+npx @clicade/solitaire
 ```
 
 ## Why
@@ -94,6 +95,13 @@ const result = await app.run();   // { code, reason }
 
 An app declares whether it owns the process. Standalone apps (`npx @clicade/blackjack`) end it; embedded ones hand control back. A game never knows which it is.
 
+### Games
+
+| Game | Package | Notes |
+|---|---|---|
+| Blackjack | `@clicade/blackjack` | 6 decks, 3:2, double and split |
+| Solitaire | `@clicade/solitaire` | Klondike draw-three, unlimited undo, safe autoplay |
+
 ### Adding a game
 
 A game is a module with a catalogue entry and a `start()`:
@@ -115,6 +123,7 @@ Then `index.js` calls `start({ standalone: true })` and `apps/arcade/src/catalog
 pnpm install
 pnpm arcade      # the launcher, from source
 pnpm blackjack   # one game, from source
+pnpm solitaire
 pnpm demo        # run the engine harness — bouncing box, live caps, fps
 pnpm test        # unit + golden-frame tests (node:test, no test framework)
 pnpm build       # esbuild every publishable package to dist/cli.js

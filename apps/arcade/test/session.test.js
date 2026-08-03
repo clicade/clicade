@@ -13,6 +13,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { run } from '../src/main.js';
+import { CATALOG } from '../src/catalog.js';
 
 // Launching blackjack for real means it saves for real. Without this the suite
 // would rewrite the developer's own bankroll every time it ran.
@@ -60,10 +61,12 @@ function session(keys) {
     rows: CAPS.rows,
   };
 
+  // Once the script runs out, keep pressing q. Every screen — menu or game —
+  // exits on q, so a test whose key sequence no longer matches the catalog
+  // fails on its assertion instead of hanging the entire suite forever.
   const pending = [...keys];
   const timer = setInterval(() => {
-    if (pending.length === 0) return;
-    stdin.emit('data', pending.shift());
+    stdin.emit('data', pending.length ? pending.shift() : 'q');
   }, 5);
 
   return run({
@@ -71,6 +74,9 @@ function session(keys) {
     env: { caps: { ...CAPS }, stream, stdin },
   }).finally(() => clearInterval(timer));
 }
+
+/** First entry the menu will refuse to launch. */
+const UNBUILT_INDEX = CATALOG.findIndex((entry) => !entry.start);
 
 test('q from the menu ends the session cleanly', async () => {
   const code = await session(['q']);
@@ -103,9 +109,24 @@ test('Ctrl-C inside a game ends the whole session', async () => {
 });
 
 test('picking a game that is not built keeps the menu open', async () => {
-  // down -> Solitaire, enter -> refused, q -> leave.
-  const code = await session(['\x1b[B', '\r', 'q']);
+  // The index is derived, not hardcoded: this test used to walk down one row
+  // and assume it landed on something unbuilt, which stopped being true the
+  // moment a game shipped.
+  assert.ok(UNBUILT_INDEX >= 0, 'the catalog needs an unbuilt entry for this to mean anything');
+  const down = Array.from({ length: UNBUILT_INDEX }, () => '\x1b[B');
+  const code = await session([...down, '\r', 'q']);
   assert.equal(code, 0);
+});
+
+test('every playable game can be entered and left from the menu', async () => {
+  // Walks the whole catalog, so a game wired up with a broken start() is caught
+  // here rather than by a player.
+  for (let i = 0; i < CATALOG.length; i++) {
+    if (!CATALOG[i].start) continue;
+    const down = Array.from({ length: i }, () => '\x1b[B');
+    const code = await session([...down, '\r', 'q', 'q']);
+    assert.equal(code, 0, `${CATALOG[i].id} did not return to the menu`);
+  }
 });
 
 test('number keys jump straight to an entry', async () => {

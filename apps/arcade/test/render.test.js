@@ -45,9 +45,19 @@ test('the panel follows the selection', () => {
 });
 
 test('unbuilt games are labelled rather than hidden', () => {
-  const text = frame(90, 28, { index: 1 });
+  // Derived, not hardcoded: this pointed at a fixed row and started failing the
+  // moment the game on that row shipped.
+  const index = CATALOG.findIndex((entry) => !entry.start);
+  assert.ok(index >= 0, 'the catalog needs an unbuilt entry for this to mean anything');
+
+  const text = frame(90, 28, { index });
   assert.match(text, /soon/);
   assert.match(text, /not built yet/);
+});
+
+test('playable games are never labelled soon', () => {
+  const index = CATALOG.findIndex((entry) => entry.start);
+  assert.match(frame(90, 28, { index }), /ready/);
 });
 
 test('layout keeps the footer inside the window at every size', () => {

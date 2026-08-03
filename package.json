@@ -10,6 +10,7 @@
   "scripts": {
     "arcade": "node apps/arcade/index.js",
     "blackjack": "node games/blackjack/index.js",
+    "solitaire": "node games/solitaire/index.js",
     "demo": "node apps/demo/index.js",
     "test": "node --test \"packages/**/test/*.test.js\" \"games/**/test/*.test.js\" \"apps/**/test/*.test.js\"",
     "build": "node scripts/build.mjs",

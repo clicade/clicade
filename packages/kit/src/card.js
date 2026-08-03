@@ -181,3 +181,98 @@ export function handWidth(count, opts = {}) {
   const overlap = opts.overlap ?? SIZES.spine.w;
   return (count - 1) * overlap + SIZES[opts.size ?? 'full'].w;
 }
+
+/**
+ * Vertical offsets for a downward-overlapping pile — a solitaire tableau.
+ *
+ * Face-up cards need two rows so their rank stays readable; face-down cards
+ * only need one, since there is nothing to read. A tableau pile can outgrow any
+ * terminal, so when the natural layout doesn't fit, every card falls back to a
+ * single uniform step small enough that it does. Compressing uniformly rather
+ * than clipping the tail keeps the bottom card — the one you can actually play —
+ * on screen, which is the only card that must never disappear.
+ *
+ * Separate from drawing so the game can put the cursor on a card without
+ * duplicating the arithmetic, and so the packing is testable on its own.
+ *
+ * @param {Array<{faceUp?:boolean}>} cards
+ * @param {object} [opts]
+ * @param {number} [opts.stepUp] rows consumed by a face-up card
+ * @param {number} [opts.stepDown] rows consumed by a face-down card
+ * @param {number} [opts.maxHeight] rows available; omit for no compression
+ * @returns {{offsets:number[], height:number, compressed:boolean}}
+ */
+export function pileOffsets(cards, opts = {}) {
+  const size = SIZES[opts.size ?? 'full'] ?? SIZES.full;
+  const stepUp = opts.stepUp ?? 2;
+  const stepDown = opts.stepDown ?? 1;
+  const n = cards.length;
+
+  if (n === 0) return { offsets: [], height: size.h, compressed: false };
+
+  const offsets = [];
+  let y = 0;
+  for (const card of cards) {
+    offsets.push(y);
+    y += card?.faceUp === false ? stepDown : stepUp;
+  }
+  const height = offsets[n - 1] + size.h;
+
+  const max = opts.maxHeight;
+  if (!max || height <= max || n === 1) {
+    return { offsets, height, compressed: false };
+  }
+
+  // One uniform step for the whole pile. Never below 1: cards must not land on
+  // the same row, or the pile stops reading as a stack at all.
+  const step = Math.max(1, Math.floor((max - size.h) / (n - 1)));
+  const packed = cards.map((_, i) => i * step);
+  return { offsets: packed, height: packed[n - 1] + size.h, compressed: true };
+}
+
+/**
+ * Draw a pile overlapping downward.
+ *
+ * @param {number} [opts.selectedFrom] index from which cards are drawn lifted
+ * @returns {{offsets:number[], height:number}} where each card landed
+ */
+export function renderPile(target, g, x, y, cards, opts = {}) {
+  const { offsets, height, compressed } = pileOffsets(cards, opts);
+
+  const theme = opts.theme ?? getTheme();
+  const size = SIZES[opts.size ?? 'full'] ?? SIZES.full;
+
+  cards.forEach((card, i) => {
+    const last = i === cards.length - 1;
+    const selected = opts.selectedFrom != null && i >= opts.selectedFrom;
+    const faceUp = card?.faceUp !== false;
+
+    // Lifted cards sit a column to the right of the pile. Highlighting them by
+    // colour alone would make the selection invisible in monochrome, and the
+    // one thing a player must always be able to see is what they are holding.
+    const lift = selected ? (opts.lift ?? 1) : 0;
+
+    renderCard(target, g, x + lift, y + offsets[i], card, {
+      ...opts,
+      faceUp,
+      // Only the bottom card casts one. An interior shadow would fall on the
+      // card below it and read as a gap in the stack.
+      shadow: last && opts.shadow !== false,
+      highlight: selected || (opts.highlight && last),
+    });
+
+    // A face-down card compressed to a single row would show nothing but its
+    // top border, which is the same shape an empty slot draws. Fill that row
+    // with the back pattern so the stack still reads as cards without relying
+    // on colour — on a monochrome terminal the border alone is a lie.
+    const visible = last ? size.h : offsets[i + 1] - offsets[i];
+    if (!faceUp && visible === 1 && size.w > 2) {
+      target.put(x + lift, y + offsets[i], g.tlRound + g.shadeMed.repeat(size.w - 2) + g.trRound, {
+        fg: theme.cardEdge,
+        bg: theme.cardBack,
+      });
+    }
+  });
+
+  return { offsets, height, compressed };
+}

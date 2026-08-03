@@ -14,6 +14,7 @@
  */
 
 import * as blackjack from '@clicade/blackjack/src/main.js';
+import * as solitaire from '@clicade/solitaire/src/main.js';
 
 /**
  * @typedef {object} Entry
@@ -28,17 +29,10 @@ import * as blackjack from '@clicade/blackjack/src/main.js';
 /** @type {Entry[]} */
 export const CATALOG = [
   { ...blackjack.meta, start: blackjack.start },
+  { ...solitaire.meta, start: solitaire.start },
 
   // Announced, not yet built. Listed so the menu reads as a place that is going
   // somewhere; `start: null` is the single switch that keeps them unplayable.
-  {
-    id: 'solitaire',
-    title: 'Solitaire',
-    blurb: 'Klondike, draw three. Keyboard-driven piles, undo, and a real deal.',
-    players: '1 player',
-    tags: ['cards', 'classic'],
-    start: null,
-  },
   {
     id: 'minesweeper',
     title: 'Minesweeper',
