@@ -13,7 +13,7 @@ import { render, minSize, recommendedSize } from './render.js';
 export const meta = {
   id: 'solitaire',
   title: 'Solitaire',
-  blurb: 'Klondike, draw three. Keyboard-driven piles, unlimited undo, and a real deal.',
+  blurb: 'Klondike. Turn one card or three, unlimited undo, and a real deal.',
   players: '1 player',
   tags: ['cards', 'classic'],
   // The launcher reads these to tell the player what window each size wants.
@@ -22,10 +22,19 @@ export const meta = {
   recommendedSize,
 };
 
+/** `--draw 1` / `--draw=3`. Unknown values fall back rather than failing. */
+export function drawFlag(rest = []) {
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i] === '--draw') return rest[i + 1] ?? null;
+    if (rest[i].startsWith('--draw=')) return rest[i].slice('--draw='.length);
+  }
+  return null;
+}
+
 export function start(opts = {}) {
   const args = opts.args ?? parseArgs(opts.argv);
   const prefs = opts.prefs ?? loadPrefs();
-  const game = createGame({ seed: opts.seed });
+  const game = createGame({ seed: opts.seed, draw: opts.draw ?? drawFlag(args.rest) });
   const theme = themeFor(args, prefs);
   const scale = prefs.scale ?? 'normal';
   const min = minSize(scale);
@@ -125,6 +134,14 @@ export function onKey(key, ctx, game) {
 
     case 'n':
       game.deal();
+      return;
+
+    // Turning one card versus three is a rule of the game, not a preference
+    // about how it looks, so it lives on a key here rather than in arcade
+    // settings. It takes effect on the next draw — throwing away a game in
+    // progress to change it would be the worse outcome.
+    case 't':
+      game.cycleDraw();
       return;
 
     default:

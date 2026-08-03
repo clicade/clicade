@@ -12,7 +12,8 @@ import { createRng, randomSeed, createDeck, createTimeline, ease } from '@clicad
 import { createSave } from '@clicade/tui';
 import {
   TABLEAU_PILES,
-  DRAW_COUNT,
+  drawCount,
+  DRAW_COUNTS,
   canStackTableau,
   canStackFoundation,
   isMovableRun,
@@ -40,6 +41,10 @@ const DEFAULT_SAVE = {
   bestMoves: null,
   bestSeconds: null,
   streak: 0,
+  // Draw count lives with the stats rather than in global prefs: it is a rule
+  // of this game, not a presentation setting, and nothing else in the arcade
+  // has an opinion about it.
+  draw: null,
 };
 
 export function createGame(opts = {}) {
@@ -66,6 +71,9 @@ export function createGame(opts = {}) {
     message: '',
     stats: store.load(),
   };
+
+  // An explicit option wins, then whatever was played last, then the default.
+  state.draw = drawCount(opts.draw ?? state.stats.draw);
 
   const undoStack = [];
 
@@ -226,7 +234,7 @@ export function createGame(opts = {}) {
     }
 
     snapshot();
-    const n = Math.min(DRAW_COUNT, state.stock.length);
+    const n = Math.min(state.draw, state.stock.length);
     for (let i = 0; i < n; i++) {
       const card = state.stock.pop();
       card.faceUp = true;
@@ -244,6 +252,30 @@ export function createGame(opts = {}) {
     state.selection = null;
     state.message = '';
     return true;
+  }
+
+  /**
+   * Switch between turning one card and turning three.
+   *
+   * Applies to the next draw rather than forcing a new deal. Throwing away a
+   * game in progress to change a setting is a worse outcome than letting
+   * someone change their mind halfway through their own game of patience.
+   *
+   * Remembered, because nobody wants to set this every launch.
+   */
+  function setDraw(value) {
+    const next = drawCount(value);
+    if (next === state.draw) return false;
+    state.draw = next;
+    state.stats.draw = next;
+    persist();
+    state.message = next === 1 ? 'turning one card' : 'turning three';
+    return true;
+  }
+
+  function cycleDraw() {
+    const at = DRAW_COUNTS.indexOf(state.draw);
+    return setDraw(DRAW_COUNTS[(at + 1) % DRAW_COUNTS.length]);
   }
 
   // --- selection and moves -------------------------------------------------
@@ -498,6 +530,8 @@ export function createGame(opts = {}) {
     busy,
     deal,
     draw,
+    setDraw,
+    cycleDraw,
     select,
     drop,
     cancel,
@@ -520,8 +554,8 @@ export function createGame(opts = {}) {
   // Any action invalidates the hints on screen — they were computed for a table
   // that no longer exists. Wrapping once here rather than clearing inside each
   // action means a new action cannot forget to do it.
-  for (const name of ['deal', 'draw', 'select', 'drop', 'cancel', 'adjustRun',
-    'autoLift', 'autoplay', 'undo', 'moveCursor', 'switchRow']) {
+  for (const name of ['deal', 'draw', 'setDraw', 'cycleDraw', 'select', 'drop', 'cancel',
+    'adjustRun', 'autoLift', 'autoplay', 'undo', 'moveCursor', 'switchRow']) {
     const fn = api[name];
     api[name] = (...args) => {
       state.hints = [];

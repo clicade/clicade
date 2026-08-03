@@ -8,9 +8,15 @@ function memorySave() {
   return { load: () => ({ ...data }), save: (d) => ((data = d), true) };
 }
 
-/** A dealt game with the opening animation already run out. */
-function settled(seed = 1) {
-  const game = createGame({ seed, save: memorySave() });
+/**
+ * A dealt game with the opening animation already run out.
+ *
+ * Draw count is stated rather than inherited: these tests assert exact stock
+ * and waste sizes, so leaving it to the default would make them fail the day
+ * the default moves — which is precisely what happened.
+ */
+function settled(seed = 1, draw = 3) {
+  const game = createGame({ seed, draw, save: memorySave() });
   for (let i = 0; i < 300; i++) game.update(1 / 60);
   return game;
 }
@@ -386,4 +392,104 @@ test('a new deal resets the table but keeps lifetime stats', () => {
   assert.equal(game.state.waste.length, 0);
   assert.equal(game.canUndo, false);
   assert.equal(game.state.stats.games, 2, 'both deals counted');
+});
+
+// --- turning one card versus three -----------------------------------------
+
+test('turning one exposes every card in the stock, one at a time', () => {
+  // The report: "it shows 3 cards at once but I can only pick the top card."
+  // In draw-three that is the rule. Turning one makes every card reachable.
+  const game = settled(1, 1);
+  const total = game.state.stock.length;
+  const seen = [];
+
+  for (let i = 0; i < total; i++) {
+    game.draw();
+    seen.push(game.state.waste[game.state.waste.length - 1]);
+  }
+
+  assert.equal(seen.length, total, 'not every card surfaced');
+  assert.equal(new Set(seen.map((x) => x.rank + x.suit)).size, total, 'a card came up twice');
+  assert.equal(game.state.stock.length, 0);
+});
+
+test('turning three leaves two of every three buried, as Klondike does', () => {
+  const game = settled(1, 3);
+  game.draw();
+  assert.equal(game.state.waste.length, 3);
+  // Only the top is playable — that is the game, not a bug.
+  assert.equal(game.state.waste.at(-1).faceUp, true);
+});
+
+test('the draw count can be changed mid-game without discarding it', () => {
+  // Forcing a new deal to change a rule loses a game somebody was playing.
+  const game = settled(1, 3);
+  game.draw();
+  const wasteBefore = game.state.waste.length;
+  const tableauBefore = JSON.stringify(game.state.tableau);
+
+  assert.equal(game.setDraw(1), true);
+  assert.equal(game.state.waste.length, wasteBefore, 'the table was disturbed');
+  assert.equal(JSON.stringify(game.state.tableau), tableauBefore);
+
+  game.draw();
+  assert.equal(game.state.waste.length, wasteBefore + 1, 'the new count did not take effect');
+});
+
+test('cycling steps between the two counts and comes back', () => {
+  const game = settled(1, 1);
+  game.cycleDraw();
+  assert.equal(game.state.draw, 3);
+  game.cycleDraw();
+  assert.equal(game.state.draw, 1);
+});
+
+test('setting the count it already is changes nothing', () => {
+  const game = settled(1, 3);
+  assert.equal(game.setDraw(3), false);
+  assert.equal(game.state.draw, 3);
+});
+
+test('a nonsense draw count falls back rather than breaking the deal', () => {
+  // It arrives from a flag and from a save file, so it is genuinely untrusted.
+  for (const bad of [0, 2, -1, 99, 'three', null, undefined, NaN]) {
+    const game = createGame({ seed: 1, draw: bad, save: memorySave() });
+    assert.ok([1, 3].includes(game.state.draw), `${String(bad)} produced ${game.state.draw}`);
+  }
+});
+
+test('the choice is remembered for next time', () => {
+  const store = memorySave();
+  const first = createGame({ seed: 1, save: store });
+  for (let i = 0; i < 300; i++) first.update(1 / 60);
+  first.setDraw(3);
+
+  const second = createGame({ seed: 1, save: store });
+  assert.equal(second.state.draw, 3, 'the draw count did not survive a relaunch');
+});
+
+test('an explicit option beats what was last played', () => {
+  const store = memorySave();
+  const first = createGame({ seed: 1, save: store });
+  for (let i = 0; i < 300; i++) first.update(1 / 60);
+  first.setDraw(3);
+
+  assert.equal(createGame({ seed: 1, draw: 1, save: store }).state.draw, 1);
+});
+
+test('recycling preserves order when turning one, too', () => {
+  const game = settled(1, 1);
+  const order = [];
+  while (game.state.stock.length) {
+    game.draw();
+    order.push(game.state.waste.at(-1).rank + game.state.waste.at(-1).suit);
+  }
+  game.draw(); // recycle
+
+  const second = [];
+  while (game.state.stock.length) {
+    game.draw();
+    second.push(game.state.waste.at(-1).rank + game.state.waste.at(-1).suit);
+  }
+  assert.deepEqual(second, order, 'the second pass dealt a different sequence');
 });

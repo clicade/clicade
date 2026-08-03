@@ -266,3 +266,38 @@ test('recycling can be undone like any other move', () => {
   assert.equal(state.passes, 0, 'undo left the pass count wrong');
   assert.equal(state.stock.length, 0, 'undo did not put the waste back');
 });
+
+// --- turning one or three --------------------------------------------------
+
+test('t switches how many cards a draw turns over', () => {
+  const { game, press } = table();
+  const before = game.state.draw;
+  press('t');
+  assert.notEqual(game.state.draw, before, 't did nothing');
+  press('t');
+  assert.equal(game.state.draw, before, 't did not come back round');
+});
+
+test('turning one, every card in the stock can be reached by pressing d', () => {
+  // The whole point of the option: in draw-three the two cards under the top
+  // one cannot be picked up at all, which is what "I can only pick the top
+  // card" was describing.
+  const { game, press } = table((g) => g.setDraw(1));
+  const { state } = game;
+  const reachable = new Set();
+
+  while (state.stock.length) {
+    press('d');
+    reachable.add(state.waste.at(-1).rank + state.waste.at(-1).suit);
+  }
+  assert.equal(reachable.size, 24, 'some cards never became the top of the waste');
+});
+
+test('the waste shows only what the current draw exposed', () => {
+  const { game, press } = table((g) => g.setDraw(1));
+  press('d');
+  press('d');
+  press('d');
+  assert.equal(game.state.waste.length, 3, 'three draws put three cards on the waste');
+  assert.equal(game.state.draw, 1, 'but only one is turned at a time');
+});

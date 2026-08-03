@@ -197,12 +197,16 @@ function drawWaste(stage, g, state, theme, L) {
     return;
   }
 
-  // Only the last three are visible, which is exactly what draw-three exposes.
-  // They step by three columns so the two underneath still show a rank and a
-  // suit — at two, a covered card shows one character and reads as noise. The
-  // fan runs into the empty column left of the foundations, which is why that
-  // gap is in the layout at all.
-  const shown = state.waste.slice(-3);
+  // The fan shows exactly what the last draw exposed, so it never implies a
+  // card is reachable when it is not. Turning one shows one: three cards with
+  // only the top playable is precisely the thing that reads as a bug.
+  //
+  // They step by half a card so the ones underneath still show a rank and a
+  // suit — at two columns, a covered card shows one character and reads as
+  // noise. The fan runs into the empty column left of the foundations, which
+  // is why that gap is in the layout at all.
+  const exposed = Math.max(1, Math.min(state.draw ?? 3, 3));
+  const shown = state.waste.slice(-exposed);
   const stockX = L.colX(STOCK_COL);
 
   shown.forEach((card, i) => {
@@ -390,6 +394,10 @@ export function controlsFor(game, ctx = {}, width = Infinity) {
     { rank: 1, key: 'tab', label: 'row', when: held },
     { rank: 1, key: 'esc', label: 'cancel', when: held },
     { rank: 2, key: 'a', label: 'foundation' },
+    // Names what pressing it does, not what is currently set — a hint reading
+    // "draw one" while already drawing one is the kind of label people press
+    // twice to work out.
+    { rank: 3, key: 't', label: state.draw === 1 ? 'turn three' : 'turn one', when: !held },
     { rank: 3, key: 'u', label: 'undo', when: game.canUndo },
     { rank: 4, key: '?', label: 'hint' },
     { rank: 5, key: 'F2', label: ctx.mono ? 'color' : 'mono', when: ctx.colorAvailable },

@@ -152,7 +152,13 @@ An app declares whether it owns the process. Standalone apps (`npx @clicade/blac
 | Game | Package | Notes |
 |---|---|---|
 | Blackjack | `@clicade/blackjack` | 6 decks, 3:2, double and split |
-| Solitaire | `@clicade/solitaire` | Klondike draw-three, unlimited undo, safe autoplay |
+| Solitaire | `@clicade/solitaire` | Klondike, turn one or three, unlimited undo, safe autoplay |
+
+Solitaire turns **one** card by default. Press `t` for three — the classic, harder deal, where two of every three cards stay buried until the pass comes round again. The choice is remembered, takes effect on the next draw rather than discarding the game in progress, and can be set at launch:
+
+```bash
+npx @clicade/solitaire --draw 3
+```
 
 ### Adding a game
 

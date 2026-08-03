@@ -119,11 +119,12 @@ test('the win banner appears once the foundations are full', () => {
 // Carries a stock and a waste because the real one does, and the footer now
 // asks about them. A double thin enough to omit them would only prove that the
 // footer runs against a table that cannot exist.
-const fakeGame = (held, canUndo, { stock = 10, waste = 0 } = {}) => ({
+const fakeGame = (held, canUndo, { stock = 10, waste = 0, draw = 3 } = {}) => ({
   state: {
     selection: held ? { zone: 'tableau', index: 0, from: 0 } : null,
     stock: new Array(stock).fill(null),
     waste: new Array(waste).fill(null),
+    draw,
   },
   canUndo,
 });
@@ -292,3 +293,45 @@ test('compact buys width, and barely any height', () => {
   assert.ok(saved.height <= 2, `${saved.height} rows saved — the copy should say so`);
 });
 
+
+// --- the waste fan ---------------------------------------------------------
+
+test('turning one draws one card on the waste, not a fan of three', () => {
+  // Three cards on screen with only the top playable is exactly what read as
+  // a bug: the other two look selectable and are not.
+  const { text } = frame(90, 32, {
+    act: (game) => {
+      game.setDraw(1);
+      for (let i = 0; i < 3; i++) {
+        game.draw();
+        game.update(1);
+      }
+    },
+  });
+
+  const L = layout(90, 32);
+  const row = text.split('\n')[L.topY + 1] ?? '';
+  const between = row.slice(L.colX(1), L.colX(3));
+  // A fan of three leaves two sliver borders before the top card; one card
+  // leaves none.
+  assert.ok(!between.includes('│A'), 'a covered card is still showing a rank');
+});
+
+test('turning three still fans three', () => {
+  const { game } = frame(90, 32, {
+    act: (g) => {
+      g.setDraw(3);
+      g.draw();
+      g.update(1);
+    },
+  });
+  assert.equal(game.state.waste.length, 3);
+});
+
+test('the footer offers the other draw count, named by what it does', () => {
+  const one = controlsFor(fakeGame(false, false, { draw: 1 }), {}, 200);
+  assert.ok(one.some(([key, label]) => key === 't' && label === 'turn three'));
+
+  const three = controlsFor(fakeGame(false, false, { draw: 3 }), {}, 200);
+  assert.ok(three.some(([key, label]) => key === 't' && label === 'turn one'));
+});

@@ -9,7 +9,22 @@ import { RANKS, isRed } from '@clicade/kit';
 
 export const TABLEAU_PILES = 7;
 export const FOUNDATIONS = 4;
-export const DRAW_COUNT = 3;
+/**
+ * How many cards a draw turns over.
+ *
+ * Draw-three is the classic deal and the harder one: two of every three cards
+ * stay buried until the pass comes round again. Draw-one exposes every card in
+ * order, which is a different game rather than an easier setting of the same
+ * one, so it is a choice the player makes and keeps.
+ */
+export const DRAW_COUNTS = [1, 3];
+export const DEFAULT_DRAW = 1;
+
+/** Coerce anything stored, typed or passed in to a count we actually support. */
+export function drawCount(value) {
+  const n = Number(value);
+  return DRAW_COUNTS.includes(n) ? n : DEFAULT_DRAW;
+}
 
 /**
  * Which board column each top-row slot sits above: stock, waste, then the four
