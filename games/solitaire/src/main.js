@@ -66,17 +66,26 @@ export function onKey(key, ctx, game) {
       game.moveCursor(1);
       return;
 
-    // With cards in hand, up and down resize the run being carried; with empty
-    // hands they switch between the top row and the tableau.
+    // With cards in hand, up and down first resize the run being carried, then
+    // switch rows once it cannot grow or shrink any further.
+    //
+    // They used to stop at resizing, which meant that holding anything made the
+    // other row unreachable — a card picked up from the waste could only ever
+    // go to a foundation, never down to the tableau. Falling through keeps
+    // every destination reachable with the same two keys.
     case 'up':
     case 'k':
-      if (state.selection) game.adjustRun(1);
-      else game.switchRow();
+      if (!state.selection || !game.adjustRun(1)) game.switchRow();
       return;
     case 'down':
     case 'j':
-      if (state.selection) game.adjustRun(-1);
-      else game.switchRow();
+      if (!state.selection || !game.adjustRun(-1)) game.switchRow();
+      return;
+
+    // An unambiguous way across, for anyone who does not want to discover the
+    // fall-through by pressing up twice.
+    case 'tab':
+      game.switchRow();
       return;
 
     case 'space':

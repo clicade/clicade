@@ -11,6 +11,27 @@ export const TABLEAU_PILES = 7;
 export const FOUNDATIONS = 4;
 export const DRAW_COUNT = 3;
 
+/**
+ * Which board column each top-row slot sits above: stock, waste, then the four
+ * foundations pushed right to leave column 2 as the gap the waste fans into.
+ *
+ * This is the Klondike table arrangement, not a drawing detail, so the cursor
+ * and the renderer both read it from here. When they each had their own copy,
+ * moving between rows sent the cursor diagonally.
+ */
+export const TOP_SLOT_COLUMNS = [0, 1, 3, 4, 5, 6];
+
+/** The top-row slot sitting nearest a given board column. */
+export function nearestTopSlot(column) {
+  let best = 0;
+  for (let i = 1; i < TOP_SLOT_COLUMNS.length; i++) {
+    if (Math.abs(TOP_SLOT_COLUMNS[i] - column) < Math.abs(TOP_SLOT_COLUMNS[best] - column)) {
+      best = i;
+    }
+  }
+  return best;
+}
+
 /** 1-based: A=1 … K=13. */
 export function rankValue(rank) {
   return RANKS.indexOf(rank) + 1;

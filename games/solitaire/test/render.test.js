@@ -135,7 +135,18 @@ test('quit stays last however much is trimmed', () => {
 
 test('a wide window shows everything', () => {
   const labels = controlsFor(fakeGame(true, true), { colorAvailable: true }, 200).map((k) => k[1]);
-  assert.deepEqual(labels, ['move', 'take more', 'drop', 'cancel', 'foundation', 'undo', 'hint', 'mono', 'quit']);
+  assert.deepEqual(labels, [
+    'move',
+    'take more',
+    'drop',
+    'row',
+    'cancel',
+    'foundation',
+    'undo',
+    'hint',
+    'mono',
+    'quit',
+  ]);
 });
 
 test('hints that do not apply are absent rather than greyed out', () => {

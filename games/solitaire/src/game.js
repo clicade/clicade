@@ -22,6 +22,8 @@ import {
   isWon,
   isSafeToAutoplay,
   destinationsFor,
+  TOP_SLOT_COLUMNS,
+  nearestTopSlot,
 } from './rules.js';
 
 const DEAL_TIME = 0.16;
@@ -176,11 +178,14 @@ export function createGame(opts = {}) {
   }
 
   function switchRow() {
-    const from = state.cursor.row;
-    const to = from === 'top' ? 'tableau' : 'top';
-    // Keep the cursor roughly under where it was. The rows have different
-    // lengths, so this is a clamp rather than a mapping.
-    state.cursor = { row: to, col: Math.min(state.cursor.col, rowLength(to) - 1) };
+    // Cross to the slot that is visually above or below, not to the slot with
+    // the same index. Foundation 0 is the third top-row slot but sits over the
+    // fourth column, so index-matching sent the cursor sideways.
+    if (state.cursor.row === 'top') {
+      state.cursor = { row: 'tableau', col: TOP_SLOT_COLUMNS[state.cursor.col] ?? 0 };
+    } else {
+      state.cursor = { row: 'top', col: nearestTopSlot(state.cursor.col) };
+    }
     state.message = '';
   }
 

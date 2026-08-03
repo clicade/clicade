@@ -11,7 +11,7 @@
 
 import { strWidth, box } from '@clicade/tui';
 import { renderCard, renderPile, pileOffsets, lerp, SIZES } from '@clicade/kit';
-import { TABLEAU_PILES, top } from './rules.js';
+import { TABLEAU_PILES, TOP_SLOT_COLUMNS, top } from './rules.js';
 
 const CARD_W = SIZES.full.w;
 const CARD_H = SIZES.full.h;
@@ -19,10 +19,13 @@ const GAP = 2;
 const PITCH = CARD_W + GAP;
 const BOARD_W = TABLEAU_PILES * PITCH - GAP;
 
-/** Column each top-row slot sits above, so the two rows line up. */
-const STOCK_COL = 0;
-const WASTE_COL = 1;
-const FOUNDATION_COL = 3;
+// Columns come from the rules module so the cursor and the drawing agree. When
+// each had its own copy, crossing rows moved the cursor diagonally.
+const [STOCK_COL, WASTE_COL, FOUNDATION_COL] = [
+  TOP_SLOT_COLUMNS[0],
+  TOP_SLOT_COLUMNS[1],
+  TOP_SLOT_COLUMNS[2],
+];
 
 export const MIN_W = BOARD_W + 4;
 export const MIN_H = 24;
@@ -250,9 +253,7 @@ function drawCursor(stage, g, state, theme, L) {
 
 /** Top-row slot index to board column. */
 function topSlotColumn(slot) {
-  if (slot === 0) return STOCK_COL;
-  if (slot === 1) return WASTE_COL;
-  return FOUNDATION_COL + (slot - 2);
+  return TOP_SLOT_COLUMNS[slot] ?? 0;
 }
 
 // --- footer ----------------------------------------------------------------
@@ -300,6 +301,7 @@ export function controlsFor(game, ctx = {}, width = Infinity) {
     { rank: 0, key: `${g.arrowL}${g.arrowR}`, label: 'move' },
     { rank: 0, key: `${g.arrowU}${g.arrowD}`, label: held ? 'take more' : 'row' },
     { rank: 0, key: 'space', label: held ? 'drop' : 'pick up' },
+    { rank: 1, key: 'tab', label: 'row', when: held },
     { rank: 1, key: 'esc', label: 'cancel', when: held },
     { rank: 2, key: 'a', label: 'foundation' },
     { rank: 3, key: 'u', label: 'undo', when: game.canUndo },
