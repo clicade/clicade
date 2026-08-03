@@ -37,6 +37,33 @@ test('it asks about the two things a terminal cannot report', () => {
   assert.ok(asked.includes('surface'));
 });
 
+// --- measured suggestions --------------------------------------------------
+
+test('setup opens on the measured suggestion, not the generic default', () => {
+  // Size is the one question with a measurable answer. Asking someone to guess
+  // at it when we can count the columns ourselves is a wasted question.
+  const flow = createOnboarding({}, { scale: 'compact' });
+  assert.equal(flow.state.values.scale, 'compact');
+  assert.notEqual(flow.state.values.scale, FALLBACKS.scale);
+});
+
+test('a saved choice outranks anything measured', () => {
+  // A detected value is a guess; a saved one is an answer. Letting the guess
+  // win would silently undo a decision the player made on purpose.
+  const flow = createOnboarding({ scale: 'roomy' }, { scale: 'compact' });
+  assert.equal(flow.state.values.scale, 'roomy');
+});
+
+test('a suggestion for a setting the player never touched still applies', () => {
+  const flow = createOnboarding({ contrast: 'high' }, { scale: 'compact' });
+  assert.equal(flow.state.values.contrast, 'high', 'their answer kept');
+  assert.equal(flow.state.values.scale, 'compact', 'our guess used');
+});
+
+test('no suggestion at all leaves the flow exactly as it was', () => {
+  assert.deepEqual(createOnboarding({}).state.values, createOnboarding({}, {}).state.values);
+});
+
 test('stepping forward reaches the end and then stops', () => {
   const flow = createOnboarding({});
   for (let i = 0; i < STEPS.length - 1; i++) assert.equal(flow.next(), true);

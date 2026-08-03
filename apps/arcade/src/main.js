@@ -11,7 +11,15 @@
  * quit back to the menu instead of ending the process.
  */
 
-import { createApp, parseArgs, loadPrefs, savePrefs, needsOnboarding, ONBOARDING_VERSION } from '@clicade/tui';
+import {
+  createApp,
+  parseArgs,
+  loadPrefs,
+  savePrefs,
+  needsOnboarding,
+  ONBOARDING_VERSION,
+  detectCaps,
+} from '@clicade/tui';
 import { resolveTheme } from '@clicade/kit';
 import { CATALOG, findGame, playable } from './catalog.js';
 import { createMenu } from './menu.js';
@@ -19,6 +27,7 @@ import { createSettings, effective } from './settings.js';
 import { createOnboarding } from './onboarding.js';
 import { render, MIN_W as MENU_W, MIN_H as MENU_H } from './render.js';
 import { renderSettings, renderOnboarding, MIN_W as PANEL_W, MIN_H as PANEL_H } from './screens.js';
+import { survey, report, recommend } from './fit.js';
 
 const MIN_W = Math.max(MENU_W, PANEL_W);
 const MIN_H = Math.max(MENU_H, PANEL_H);
@@ -29,6 +38,7 @@ const HELP = `clicade — terminal games that are actually good
   npx clicade <game>       skip the menu
   npx clicade --settings   open settings
   npx clicade --setup      run first-time setup again
+  npx clicade --check      what your terminal fits, and print nothing else
 
 games:
 ${CATALOG.map((e) => `  ${e.id.padEnd(14)}${e.start ? e.blurb : 'not built yet'}`).join('\n')}
@@ -50,6 +60,16 @@ export async function run(opts = {}) {
   }
 
   const flags = new Set(args.rest.filter((token) => token.startsWith('-')));
+
+  // Printed rather than drawn, deliberately: someone running this is about to
+  // paste the answer into an issue, and alt-screen output does not survive.
+  if (flags.has('--check')) {
+    const out = opts.stdout ?? process.stdout;
+    const cols = out.columns ?? 80;
+    const rows = out.rows ?? 24;
+    out.write(`${report(cols, rows, detectCaps()).join('\n')}\n`);
+    return 0;
+  }
 
   // `npx clicade blackjack` goes straight in. The menu is the front door, not
   // a toll booth — anybody who already knows what they want should skip it.
@@ -102,8 +122,16 @@ function showShell({ args, index, env = {}, screen: startScreen = 'menu' }) {
   let settings = null;
   let flow = null;
 
+  // Setup opens on a suggestion rather than a default. Size is the one question
+  // with a measurable answer, so measuring it and pre-selecting beats asking
+  // someone to guess at a number they would have to count columns to know.
+  function suggestions() {
+    const out = env.stream ?? process.stdout;
+    return { scale: recommend(out.columns ?? 80, out.rows ?? 24) };
+  }
+
   if (screen === 'settings') settings = createSettings(prefs);
-  if (screen === 'onboarding') flow = createOnboarding(prefs);
+  if (screen === 'onboarding') flow = createOnboarding(prefs, suggestions());
 
   /** Values currently in force, taking whichever screen is editing them. */
   function values() {
@@ -151,6 +179,11 @@ function showShell({ args, index, env = {}, screen: startScreen = 'menu' }) {
         mono: ctx.mono,
         colorAvailable: ctx.colorAvailable,
         scale: values().scale,
+        // Read from the screen, not the stage: the stage is frozen at launch by
+        // design, and a fit report that ignores the window the player just
+        // resized would be telling them about a terminal they no longer have.
+        // Safe here because nothing about the simulation reads it — only text.
+        fit: survey(ctx.screen.cols, ctx.screen.rows),
       };
       if (screen === 'menu') render(ctx.stage, ctx.glyphs, menu, theme(), view);
       else if (screen === 'settings') renderSettings(ctx.stage, ctx.glyphs, settings, theme(), view);
@@ -166,7 +199,7 @@ function showShell({ args, index, env = {}, screen: startScreen = 'menu' }) {
   }
 
   function openOnboarding() {
-    flow = createOnboarding(prefs);
+    flow = createOnboarding(prefs, suggestions());
     screen = 'onboarding';
   }
 

@@ -3,7 +3,17 @@ import assert from 'node:assert/strict';
 import { createScreen, createStage, glyphs } from '@clicade/tui';
 import { getTheme } from '@clicade/kit';
 import { createGame } from '../src/game.js';
-import { render, layout, controlsFor, controlsWidth, MIN_W, MIN_H } from '../src/render.js';
+import { pileOffsets } from '@clicade/kit';
+import {
+  render,
+  layout,
+  controlsFor,
+  controlsWidth,
+  minSize,
+  recommendedSize,
+  MIN_W,
+  MIN_H,
+} from '../src/render.js';
 
 function memorySave() {
   let data = { games: 0, won: 0, bestMoves: null, bestSeconds: null, streak: 0 };
@@ -155,4 +165,55 @@ test('hints that do not apply are absent rather than greyed out', () => {
   assert.equal(labels.includes('undo'), false, 'no history yet');
   assert.equal(labels.includes('mono'), false, 'no colour to toggle');
   assert.equal(labels.includes('pick up'), true);
+});
+
+// --- window requirements ---------------------------------------------------
+
+test('the minimum is derived per size, not fixed at the widest', () => {
+  // A single fixed minimum would make every player's requirement as wide as
+  // Roomy, penalising exactly the people who chose Compact to avoid that.
+  assert.ok(minSize('compact').width < minSize('normal').width);
+  assert.ok(minSize('normal').width < minSize('roomy').width);
+});
+
+test('the minimum is the initial deal fitting uncompressed', () => {
+  // Below this the deepest pile is a stripe before a card has been moved.
+  for (const scale of ['compact', 'normal', 'roomy']) {
+    const min = minSize(scale);
+    const L = layout(min.width, min.height, scale);
+    const deal = Array.from({ length: 7 }, (_, i) => ({
+      rank: 'A',
+      suit: 's',
+      faceUp: i === 6,
+    }));
+    const { compressed } = pileOffsets(deal, { size: L.card, maxHeight: L.tableauH });
+    assert.equal(compressed, false, `${scale} compresses the opening deal`);
+  }
+});
+
+test('one row short of the minimum does compress, so the floor is not padding', () => {
+  const min = minSize('normal');
+  const L = layout(min.width, min.height - 1, 'normal');
+  const deal = Array.from({ length: 7 }, (_, i) => ({ rank: 'A', suit: 's', faceUp: i === 6 }));
+  assert.equal(pileOffsets(deal, { size: L.card, maxHeight: L.tableauH }).compressed, true);
+});
+
+test('the recommended window is taller than the minimum, and no wider', () => {
+  // Extra width is only margin around a centred board; extra height is the
+  // room a mid-game pile actually needs.
+  for (const scale of ['compact', 'normal', 'roomy']) {
+    assert.equal(recommendedSize(scale).width, minSize(scale).width, scale);
+    assert.ok(recommendedSize(scale).height > minSize(scale).height, scale);
+  }
+});
+
+test('compact buys width, and barely any height', () => {
+  // The honest claim, asserted so the copy cannot drift back to promising
+  // that Compact rescues short windows.
+  const saved = {
+    width: minSize('normal').width - minSize('compact').width,
+    height: minSize('normal').height - minSize('compact').height,
+  };
+  assert.ok(saved.width >= 15, `only ${saved.width} columns saved`);
+  assert.ok(saved.height <= 2, `${saved.height} rows saved — the copy should say so`);
 });

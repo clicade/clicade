@@ -17,16 +17,36 @@ import { SETTINGS, effective, optionIndex, settingByKey } from './settings.js';
 /** Which settings are worth asking about up front, in order. */
 const ASKED = ['contrast', 'surface', 'scale'];
 
+/**
+ * Start from what was measured, but never overwrite a real choice.
+ *
+ * A detected value is a good guess; a saved one is an answer. Letting the
+ * first beat the second would silently undo a decision the player made.
+ */
+function seeded(values, prefs, seed) {
+  const out = { ...values };
+  for (const [key, value] of Object.entries(seed)) {
+    const saved = prefs?.[key];
+    if (value !== undefined && (saved === null || saved === undefined)) out[key] = value;
+  }
+  return out;
+}
+
 export const STEPS = [
   { kind: 'welcome' },
   ...ASKED.map((key) => ({ kind: 'choice', key })),
   { kind: 'done' },
 ];
 
-export function createOnboarding(prefs = {}) {
+/**
+ * @param {object} [prefs] saved preferences
+ * @param {object} [seed] measured suggestions, used only where the player has
+ *   not already chosen — a setting they set by hand outranks anything detected
+ */
+export function createOnboarding(prefs = {}, seed = {}) {
   const state = {
     step: 0,
-    values: effective(prefs),
+    values: seeded(effective(prefs), prefs, seed),
     /** 0..1 entry progress for the current step, for the slide-in. */
     enter: 0,
     finished: false,

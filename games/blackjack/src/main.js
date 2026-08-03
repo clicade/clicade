@@ -20,6 +20,12 @@ export const meta = {
   blurb: 'Beat the dealer to 21. Six decks, 3:2, double and split.',
   players: '1 player',
   tags: ['cards', 'classic'],
+  // Takes no scale argument on purpose: the table is one row of hands laid out
+  // around full-size cards, so the Size preference does not reach it. The
+  // launcher derives that from these returning the same answer at every scale,
+  // and says so rather than implying otherwise.
+  minSize: () => ({ width: MIN_W, height: MIN_H }),
+  recommendedSize: () => ({ width: MIN_W, height: MIN_H }),
 };
 
 /**

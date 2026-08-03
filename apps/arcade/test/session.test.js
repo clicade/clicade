@@ -84,6 +84,29 @@ function session(keys) {
 /** First entry the menu will refuse to launch. */
 const UNBUILT_INDEX = CATALOG.findIndex((entry) => !entry.start);
 
+// --- --check ---------------------------------------------------------------
+
+test('--check prints a report and never opens a screen', async () => {
+  // It exists to be piped and pasted. Entering the alt screen would wipe the
+  // output the moment it was written.
+  const written = [];
+  const stdout = { write: (s) => written.push(s), columns: 118, rows: 44 };
+  const code = await run({ argv: ['--check'], stdout });
+
+  assert.equal(code, 0);
+  const text = written.join('');
+  assert.match(text, /118x44/, 'reports the terminal it was given');
+  assert.match(text, /compact/);
+  assert.match(text, /Solitaire/);
+  assert.doesNotMatch(text, /\x1b\[\?1049h/, 'the alt screen was entered');
+});
+
+test('--check works on a terminal that reports no size', async () => {
+  const written = [];
+  await run({ argv: ['--check'], stdout: { write: (s) => written.push(s) } });
+  assert.match(written.join(''), /80x24/, 'falls back to the classic default');
+});
+
 test('q from the menu ends the session cleanly', async () => {
   const code = await session(['q']);
   assert.equal(code, 0);

@@ -33,6 +33,7 @@ Everything is changeable afterwards, and setup can be run again:
 ```bash
 npx clicade --settings   # settings directly
 npx clicade --setup      # run first-time setup again
+npx clicade --check      # what your terminal fits, printed and nothing else
 ```
 
 Press **s** in the menu for settings, **r** in settings to redo setup.
@@ -41,7 +42,7 @@ Press **s** in the menu for settings, **r** in settings to redo setup.
 |---|---|---|
 | Contrast | Normal · High | Pushes text away from its background. Derived from the palette, not hand-authored, so all three stay in step. |
 | Background | Themed · **Terminal** | Terminal paints **no background at all** — your own shows through, untouched. |
-| Size | Compact · Normal · Roomy | Card size and spacing. |
+| Size | Compact · Normal · Roomy | Card size and spacing. Reaches solitaire and the launcher; **not** blackjack, whose table is built around full-size cards. |
 | Colour | Colour · Monochrome | Same as `--mono` and F2. |
 | Palette | Felt · Paper · Noir | |
 
@@ -49,7 +50,35 @@ Settings preview live: the screen redraws in the theme being edited, with real c
 
 **Background: Terminal** is the answer to a dark-themed terminal. `styleToSgr` emits nothing for a null background, so we send no `48;…` sequence and your terminal keeps whatever it already was. Cards keep their faces — without one a card stops reading as an object sitting on something.
 
-Terminal *font size* belongs to your emulator; no escape sequence changes it. Size here means cells: bigger cards, more room. Compact exists for the opposite reason — a deep solitaire pile fits a short window at four rows a card where it will not at five.
+### Does your terminal fit?
+
+Contrast and background need a human eye. Size does not — how many columns you have is a number, so clicade measures it and says so rather than asking you to guess and find out when a pile compresses:
+
+```
+100x30  room to spare - wants 77x30
+70x24   too small - needs 72x22            try compact
+```
+
+That reading sits under the settings screen and beside the Size question in setup, which opens pre-set to whatever suits the window it measured. A saved choice always outranks a measured one — a guess must never quietly undo a decision.
+
+`npx clicade --check` prints the whole thing and enters no screen, so it survives being pasted into an issue:
+
+```
+size        needs    wants
+compact     72x22    72x28    fits
+normal      72x23    72x30    fits
+roomy       77x23    77x30    fits <- recommended
+
+per game, at each size:
+  Blackjack    compact 72x22   normal 72x22   roomy 72x22  (same at every size)
+  Solitaire    compact 45x21   normal 65x23   roomy 77x23
+```
+
+Every number there comes from the game itself — each exports `minSize(scale)` and `recommendedSize(scale)`, and the launcher only takes the maximum. Whether a game honours Size at all is *derived*, by asking it at both extremes and seeing whether the answer moves, so a stale flag can never claim otherwise.
+
+The two sizes mean different things. **Needs** is the floor: below it the opening deal is already compressed into stripes, and play suspends rather than cropping. **Wants** is where a mid-game pile still fits uncompressed.
+
+Terminal *font size* belongs to your emulator; no escape sequence changes it. Size here means cells. And Compact buys **width, not height** — a face-up card needs two rows for its rank whatever size it is, so shrinking cards saves 20 columns and a single row. Short windows are handled by pile compression instead. (The docs used to claim the opposite; the derivation above is what caught it.)
 
 Flags still work and still win over saved preferences:
 
@@ -131,7 +160,13 @@ A game is a module with a catalogue entry and a `start()`:
 
 ```js
 // games/<name>/src/main.js
-export const meta = { id, title, blurb, players, tags };
+export const meta = {
+  id, title, blurb, players, tags,
+  // What window it needs, and what it would rather have. The launcher reports
+  // these; a game owns its own requirement because nothing else can know it.
+  minSize: (scale) => ({ width, height }),
+  recommendedSize: (scale) => ({ width, height }),
+};
 export function start(opts = {}) {
   /* build state here, not at import time — the launcher calls this repeatedly */
   return createApp({ standalone: opts.standalone !== false, ... }).run();

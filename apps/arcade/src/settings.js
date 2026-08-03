@@ -31,9 +31,9 @@ export const SETTINGS = [
   {
     key: 'scale',
     label: 'Size',
-    help: 'Card size and spacing. Terminal font size belongs to your emulator.',
+    help: 'Card size and spacing. Font size belongs to your emulator.',
     options: [
-      { value: 'compact', label: 'Compact', note: 'Smaller cards, tighter. Fits short windows.' },
+      { value: 'compact', label: 'Compact', note: 'Smaller cards. Fits narrow windows.' },
       { value: 'normal', label: 'Normal', note: 'Full-size cards.' },
       { value: 'roomy', label: 'Roomy', note: 'Full-size cards, more air between them.' },
     ],

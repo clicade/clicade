@@ -22,6 +22,53 @@ function centred(w, text) {
   return Math.max(0, Math.floor((w - strWidth(text)) / 2));
 }
 
+/** Colour for a fit verdict. Never the only signal — the words carry it. */
+function verdictColor(state, theme) {
+  if (state === 'small') return theme.bad;
+  if (state === 'tight') return theme.textMuted;
+  return theme.good;
+}
+
+/**
+ * What the measured terminal means for a Size choice.
+ *
+ * Drawn wherever Size is being chosen, because it is the one setting with a
+ * measurable right answer — the others need a human eye, this one needs a
+ * number we already have.
+ */
+function drawFit(stage, x, y, theme, fit, scale, width = BLOCK_W) {
+  if (!fit) return;
+  const info = fit.scales?.[scale];
+  if (!info) return;
+
+  const have = `${fit.cols}x${fit.rows}`;
+  stage.put(x, y, have, { fg: theme.text, bg: theme.table, bold: true });
+
+  const state = info.verdict;
+  const text =
+    state === 'small'
+      ? `too small - needs ${info.min.width}x${info.min.height}`
+      : state === 'tight'
+        ? `plays, but tight - wants ${info.recommended.width}x${info.recommended.height}`
+        : `room to spare - wants ${info.recommended.width}x${info.recommended.height}`;
+
+  let at = x + strWidth(have) + 2;
+  stage.put(at, y, text, {
+    fg: verdictColor(state, theme),
+    bg: theme.table,
+    bold: state === 'small',
+  });
+  at += strWidth(text) + 2;
+
+  // Only worth saying when it disagrees with what is already selected.
+  if (fit.recommended && fit.recommended !== scale) {
+    const tip = `try ${fit.recommended}`;
+    if (at - x + strWidth(tip) <= width) {
+      stage.put(at, y, tip, { fg: theme.accent, bg: theme.table });
+    }
+  }
+}
+
 function arriving(color, theme, t) {
   if (t >= 1) return color;
   return mix(theme.table ?? theme.tableDark, color, t);
@@ -65,7 +112,10 @@ export function renderSettings(stage, g, settings, theme, ctx = {}) {
   stage.fill(0, 0, w, h, ' ', { bg: theme.table });
 
   stage.put(bx, by, 'SETTINGS', { fg: theme.accent, bg: theme.table, bold: true });
-  stage.put(bx + BLOCK_W - strWidth('applies everywhere'), by, 'applies everywhere', {
+  // Not "applies everywhere": Size does not reach blackjack, whose table is
+  // laid out around full-size cards. Claiming otherwise was a promise the
+  // fit report can now disprove on screen.
+  stage.put(bx + BLOCK_W - strWidth('saved as you go'), by, 'saved as you go', {
     fg: theme.textMuted,
     bg: theme.table,
   });
@@ -127,8 +177,10 @@ export function renderSettings(stage, g, settings, theme, ctx = {}) {
   ];
   drawKeys(stage, footer, theme, h - 2, w);
 
-  const note = state.changed ? 'saved automatically' : '';
-  if (note) stage.put(centred(w, note), h - 1, note, { fg: theme.tableDark, bg: theme.table });
+  // The status row carries the fit reading rather than a save confirmation:
+  // Size is the one setting with a measurable right answer, and this is the
+  // measurement. Saving is automatic and needs saying once, not permanently.
+  drawFit(stage, bx, h - 1, theme, ctx.fit, state.values.scale);
 }
 
 // --- onboarding ------------------------------------------------------------
@@ -205,12 +257,19 @@ export function renderOnboarding(stage, g, flow, theme, ctx = {}) {
       bg: theme.table,
       bold: true,
     });
-    wrap(definition.help, BLOCK_W).forEach((line, i) => {
+    const help = wrap(definition.help, BLOCK_W);
+    help.forEach((line, i) => {
       stage.put(bx + slide, bodyY + 1 + i, line, {
         fg: arriving(theme.textMuted, theme, t),
         bg: theme.table,
       });
     });
+
+    // Size is the one question we can measure the answer to, so the measurement
+    // goes next to it. The others are judgements only an eye can make.
+    if (definition.key === 'scale' && t > 0.5) {
+      drawFit(stage, bx, bodyY + 1 + help.length, theme, ctx.fit, state.values.scale);
+    }
 
     // Options are laid out as cards rather than a single cycling value: seeing
     // what else is on offer is most of what makes a choice feel safe.
@@ -220,10 +279,19 @@ export function renderOnboarding(stage, g, flow, theme, ctx = {}) {
       const active = i === at;
       const label = ` ${option.label} `;
       const width = strWidth(label) + 2;
-      box(stage, g, x, optionsY, width, 3, {
-        fg: active ? theme.accent : theme.tableDark,
-        bg: theme.table,
-      }, 'round');
+      // The chosen option is drawn with a doubled border, not merely a brighter
+      // one. Colour alone would leave the answer invisible in monochrome — the
+      // same mistake held cards made in solitaire.
+      box(
+        stage,
+        g,
+        x,
+        optionsY,
+        width,
+        3,
+        { fg: active ? theme.accent : theme.tableDark, bg: theme.table },
+        active ? 'double' : 'round',
+      );
       stage.put(x + 1, optionsY + 1, label, {
         fg: active ? theme.accent : theme.textMuted,
         bg: theme.table,

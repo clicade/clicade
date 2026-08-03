@@ -16,9 +16,12 @@ import { TABLEAU_PILES, TOP_SLOT_COLUMNS, top } from './rules.js';
 /**
  * Board metrics for a size preference.
  *
- * Solitaire is where card size earns its keep: a tableau pile is the tallest
- * thing in any clicade game, and compact cards are what let a deep column fit a
- * short window without the pile compressing into an unreadable stripe.
+ * Solitaire is where card size earns its keep, and it earns it sideways: seven
+ * piles across is the widest thing in any clicade game, so Compact is what gets
+ * the board into a narrow window. It buys almost nothing vertically — a
+ * face-up card needs two rows for its rank at any size, so the only saving is
+ * the last card's own height. Short windows are handled by pile compression,
+ * not by card size.
  */
 export function metrics(scale = 'normal') {
   const { card, gap } = getScale(scale);
@@ -42,15 +45,54 @@ const [STOCK_COL, WASTE_COL, FOUNDATION_COL] = [
   TOP_SLOT_COLUMNS[2],
 ];
 
+// Pile depths the two window sizes are derived from. The initial deal makes a
+// pile of seven with six face-down; ten is deep enough that most games never
+// build past it.
+const DEAL_DEPTH = { cards: 7, faceDown: 6 };
+const MIDGAME_DEPTH = { cards: 10, faceDown: 5 };
+
+/**
+ * Rows a pile of a given depth needs, matching what `pileOffsets` will do:
+ * a face-down card costs one row, a face-up one two, and the last card its
+ * full height.
+ */
+function pileRows({ cards, faceDown }, cardH) {
+  const faceUpSteps = Math.max(0, cards - faceDown - 1);
+  return faceDown + faceUpSteps * 2 + cardH;
+}
+
+function windowFor(depth, scale) {
+  const M = metrics(scale);
+  // Header, the top row of cards, three rows of clearance, the pile, and the
+  // two footer rows — the same arithmetic `layout` does.
+  const height = 2 + M.cardH + 3 + pileRows(depth, M.cardH) + 2;
+  return { width: M.boardW + 4, height };
+}
+
 /**
  * Smallest window the board fits at a given size.
  *
  * Derived per scale rather than fixed at the widest: a fixed minimum would make
  * everyone's window requirement as wide as Roomy, penalising the players who
  * chose Compact precisely because their window is small.
+ *
+ * The floor is the initial deal fitting uncompressed. Below that the deepest
+ * pile is a compressed stripe before a single card has been moved, which is
+ * not a game anybody should be asked to start.
  */
 export function minSize(scale = 'normal') {
-  return { width: metrics(scale).boardW + 4, height: 24 };
+  return windowFor(DEAL_DEPTH, scale);
+}
+
+/**
+ * The window this size actually wants.
+ *
+ * Between the minimum and this, play is fine but deep piles compress. Compact
+ * buys width, not height: a face-up card needs two rows for its rank whatever
+ * size it is, so the only vertical saving is the card itself.
+ */
+export function recommendedSize(scale = 'normal') {
+  return windowFor(MIDGAME_DEPTH, scale);
 }
 
 export const MIN_W = minSize('normal').width;

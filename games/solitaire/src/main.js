@@ -8,7 +8,7 @@
 import { createApp, parseArgs, loadPrefs } from '@clicade/tui';
 import { themeFor } from '@clicade/kit';
 import { createGame } from './game.js';
-import { render, minSize } from './render.js';
+import { render, minSize, recommendedSize } from './render.js';
 
 export const meta = {
   id: 'solitaire',
@@ -16,6 +16,10 @@ export const meta = {
   blurb: 'Klondike, draw three. Keyboard-driven piles, unlimited undo, and a real deal.',
   players: '1 player',
   tags: ['cards', 'classic'],
+  // The launcher reads these to tell the player what window each size wants.
+  // A game owns its own requirement; nothing else is in a position to know it.
+  minSize,
+  recommendedSize,
 };
 
 export function start(opts = {}) {
