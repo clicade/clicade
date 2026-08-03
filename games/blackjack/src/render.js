@@ -67,7 +67,7 @@ export function render(stage, g, game, theme, ctx = {}) {
   else drawSeats(stage, g, state, theme, L);
 
   drawMessage(stage, state, theme, L);
-  drawControls(stage, game, theme, L, ctx);
+  drawControls(stage, g, game, theme, L, ctx);
   drawRules(stage, theme, L);
 }
 
@@ -234,12 +234,14 @@ function drawMessage(stage, state, theme, L) {
   });
 }
 
-function drawControls(stage, game, theme, L, ctx) {
+function drawControls(stage, g, game, theme, L, ctx) {
   const { state } = game;
   let keys = [];
 
   if (state.phase === 'betting') {
-    keys = [['←→', 'bet'], ['enter', 'deal']];
+    // Arrows come from the glyph set so an ASCII-only terminal shows <> rather
+    // than two replacement boxes where the controls should be.
+    keys = [[`${g.arrowL}${g.arrowR}`, 'bet'], ['enter', 'deal']];
   } else if (state.phase === 'player') {
     keys = [['h', 'hit'], ['s', 'stand']];
     if (game.canDouble() && state.bankroll >= state.hands[state.active].bet) {

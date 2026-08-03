@@ -77,10 +77,44 @@ apps/demo        phase 0 harness — proves the engine, never published
 
 Engine packages are bundled into each game at build time rather than published. Games therefore have no dependency tree, and internal refactors never break a published contract.
 
+## The arcade
+
+```bash
+npx clicade              # the menu
+npx clicade blackjack    # skip it
+```
+
+Every game is bundled *into* the launcher too. Spawning `npx @clicade/<game>` per pick would mean a network round trip and a second cold start each time somebody chose from the menu — the exact sluggishness this project exists to avoid. One download, everything plays instantly.
+
+Quitting a game returns to the menu; Ctrl-C ends the session. That distinction is the whole reason `run()` resolves with a reason:
+
+```js
+const result = await app.run();   // { code, reason }
+```
+
+An app declares whether it owns the process. Standalone apps (`npx @clicade/blackjack`) end it; embedded ones hand control back. A game never knows which it is.
+
+### Adding a game
+
+A game is a module with a catalogue entry and a `start()`:
+
+```js
+// games/<name>/src/main.js
+export const meta = { id, title, blurb, players, tags };
+export function start(opts = {}) {
+  /* build state here, not at import time — the launcher calls this repeatedly */
+  return createApp({ standalone: opts.standalone !== false, ... }).run();
+}
+```
+
+Then `index.js` calls `start({ standalone: true })` and `apps/arcade/src/catalog.js` gets one line. Nothing may run at import time: the launcher imports every game once and calls `start()` many times, so anything built at module scope goes stale the moment a player quits and comes back.
+
 ## Development
 
 ```bash
 pnpm install
+pnpm arcade      # the launcher, from source
+pnpm blackjack   # one game, from source
 pnpm demo        # run the engine harness — bouncing box, live caps, fps
 pnpm test        # unit + golden-frame tests (node:test, no test framework)
 pnpm build       # esbuild every publishable package to dist/cli.js
@@ -98,6 +132,12 @@ FORCE_COLOR=1 pnpm demo     # 16 colors
 CLICADE_ASCII=1 pnpm demo   # ASCII box-drawing instead of Unicode
 TERM=dumb pnpm demo         # no alt screen, no color
 pnpm demo | cat             # non-TTY: must exit cleanly, never hang
+```
+
+Saves and preferences go to `CLICADE_CONFIG_DIR` when it is set, which is how the suite avoids rewriting your own bankroll:
+
+```bash
+CLICADE_CONFIG_DIR=/tmp/clicade pnpm arcade   # a throwaway profile
 ```
 
 Before any release, play one game for real in: Windows Terminal, legacy `cmd.exe`, PowerShell 5.1, VS Code's integrated terminal, WSL, macOS Terminal.app, and one `ssh` session. Automated tests cover layout; only a human notices flicker.

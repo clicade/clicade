@@ -15,6 +15,18 @@ importers:
         specifier: ^0.24.0
         version: 0.24.2
 
+  apps/arcade:
+    devDependencies:
+      '@clicade/blackjack':
+        specifier: workspace:*
+        version: link:../../games/blackjack
+      '@clicade/kit':
+        specifier: workspace:*
+        version: link:../../packages/kit
+      '@clicade/tui':
+        specifier: workspace:*
+        version: link:../../packages/tui
+
   apps/demo:
     dependencies:
       '@clicade/tui':
