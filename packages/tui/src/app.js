@@ -176,10 +176,15 @@ export function createApp(opts = {}) {
    * The screen diffs on rendered style strings, so it has to be invalidated —
    * the cells are otherwise identical and nothing would be rewritten.
    */
-  function toggleMono() {
-    mono = !mono;
+  function setMono(value) {
+    if (mono === value) return;
+    mono = value;
     caps.colorDepth = mono ? COLOR_NONE : fullDepth;
     screen.invalidate();
+  }
+
+  function toggleMono() {
+    setMono(!mono);
     savePrefs({ ...prefs, mono });
   }
 
@@ -191,6 +196,10 @@ export function createApp(opts = {}) {
     glyphs: g,
     quit,
     toggleMono,
+    // Changes the colour mode without persisting. The settings screen previews
+    // with this and owns the write itself, so editing one setting cannot save a
+    // half-finished version of the others.
+    setMono,
     get mono() {
       return mono;
     },

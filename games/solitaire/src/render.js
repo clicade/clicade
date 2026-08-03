@@ -10,14 +10,29 @@
  */
 
 import { strWidth, box } from '@clicade/tui';
-import { renderCard, renderPile, pileOffsets, lerp, SIZES } from '@clicade/kit';
+import { renderCard, renderPile, pileOffsets, lerp, getScale, SIZES } from '@clicade/kit';
 import { TABLEAU_PILES, TOP_SLOT_COLUMNS, top } from './rules.js';
 
-const CARD_W = SIZES.full.w;
-const CARD_H = SIZES.full.h;
-const GAP = 2;
-const PITCH = CARD_W + GAP;
-const BOARD_W = TABLEAU_PILES * PITCH - GAP;
+/**
+ * Board metrics for a size preference.
+ *
+ * Solitaire is where card size earns its keep: a tableau pile is the tallest
+ * thing in any clicade game, and compact cards are what let a deep column fit a
+ * short window without the pile compressing into an unreadable stripe.
+ */
+export function metrics(scale = 'normal') {
+  const { card, gap } = getScale(scale);
+  const size = SIZES[card] ?? SIZES.full;
+  const pitch = size.w + gap;
+  return {
+    card,
+    cardW: size.w,
+    cardH: size.h,
+    gap,
+    pitch,
+    boardW: TABLEAU_PILES * pitch - gap,
+  };
+}
 
 // Columns come from the rules module so the cursor and the drawing agree. When
 // each had its own copy, crossing rows moved the cursor diagonally.
@@ -27,10 +42,23 @@ const [STOCK_COL, WASTE_COL, FOUNDATION_COL] = [
   TOP_SLOT_COLUMNS[2],
 ];
 
-export const MIN_W = BOARD_W + 4;
-export const MIN_H = 24;
+/**
+ * Smallest window the board fits at a given size.
+ *
+ * Derived per scale rather than fixed at the widest: a fixed minimum would make
+ * everyone's window requirement as wide as Roomy, penalising the players who
+ * chose Compact precisely because their window is small.
+ */
+export function minSize(scale = 'normal') {
+  return { width: metrics(scale).boardW + 4, height: 24 };
+}
 
-export function layout(w, h) {
+export const MIN_W = minSize('normal').width;
+export const MIN_H = minSize('normal').height;
+
+export function layout(w, h, scale = 'normal') {
+  const M = metrics(scale);
+  const { cardW: CARD_W, cardH: CARD_H, pitch: PITCH, boardW: BOARD_W } = M;
   const x0 = Math.max(0, Math.floor((w - BOARD_W) / 2));
   const topY = 2;
   // Three rows of clearance, not two: the card shadow takes one, the stock
@@ -48,12 +76,13 @@ export function layout(w, h) {
     controlsY: h - 2,
     statusY: h - 1,
     colX: (i) => x0 + i * PITCH,
+    ...M,
   };
 }
 
 export function render(stage, g, game, theme, ctx = {}) {
   const { state } = game;
-  const L = layout(stage.width, stage.height);
+  const L = layout(stage.width, stage.height, ctx.scale);
 
   stage.fill(0, 0, L.w, L.h, ' ', { bg: theme.table });
 
@@ -88,10 +117,10 @@ function clock(seconds) {
 }
 
 /** An empty slot: where a card goes, drawn so the board never looks broken. */
-function drawSlot(stage, g, x, y, theme, label) {
-  box(stage, g, x, y, CARD_W, CARD_H, { fg: theme.tableDark, bg: theme.table }, 'round');
+function drawSlot(stage, g, x, y, theme, label, L) {
+  box(stage, g, x, y, L.cardW, L.cardH, { fg: theme.tableDark, bg: theme.table }, 'round');
   if (label) {
-    stage.put(x + Math.floor((CARD_W - strWidth(label)) / 2), y + 2, label, {
+    stage.put(x + Math.floor((L.cardW - strWidth(label)) / 2), y + Math.floor(L.cardH / 2), label, {
       fg: theme.tableDark,
       bg: theme.table,
     });
@@ -104,13 +133,13 @@ function drawStock(stage, g, state, theme, L) {
   const x = L.colX(STOCK_COL);
 
   if (state.stock.length === 0) {
-    drawSlot(stage, g, x, L.topY, theme, state.waste.length ? g.arrowL : g.cross2);
+    drawSlot(stage, g, x, L.topY, theme, state.waste.length ? g.arrowL : g.cross2, L);
   } else {
-    renderCard(stage, g, x, L.topY, null, { theme, faceUp: false, shadow: true });
+    renderCard(stage, g, x, L.topY, null, { theme, faceUp: false, shadow: true, size: L.card });
   }
 
   const count = String(state.stock.length);
-  stage.put(x + CARD_W - strWidth(count), L.topY + CARD_H + 1, count, {
+  stage.put(x + L.cardW - strWidth(count), L.topY + L.cardH + 1, count, {
     fg: theme.textMuted,
     bg: theme.table,
   });
@@ -119,7 +148,7 @@ function drawStock(stage, g, state, theme, L) {
 function drawWaste(stage, g, state, theme, L) {
   const x = L.colX(WASTE_COL);
   if (state.waste.length === 0) {
-    drawSlot(stage, g, x, L.topY, theme, '');
+    drawSlot(stage, g, x, L.topY, theme, '', L);
     return;
   }
 
@@ -133,11 +162,12 @@ function drawWaste(stage, g, state, theme, L) {
 
   shown.forEach((card, i) => {
     const last = i === shown.length - 1;
-    const slotX = x + i * 3;
+    const slotX = x + i * Math.max(2, Math.floor(L.cardW / 2) - 1);
     const t = card.anim ? card.anim.t : 1;
 
     renderCard(stage, g, Math.round(lerp(stockX, slotX, t)), L.topY, card, {
       theme,
+      size: L.card,
       faceUp: true,
       shadow: last,
       highlight: isSelected(state, 'waste', 0) && last,
@@ -151,11 +181,12 @@ function drawFoundations(stage, g, state, theme, L) {
     const card = top(pile);
 
     if (!card) {
-      drawSlot(stage, g, x, L.topY, theme, 'A');
+      drawSlot(stage, g, x, L.topY, theme, 'A', L);
       return;
     }
     renderCard(stage, g, x, L.topY, card, {
       theme,
+      size: L.card,
       faceUp: true,
       shadow: true,
       highlight: isSelected(state, 'foundation', i),
@@ -170,7 +201,7 @@ function drawTableau(stage, g, state, theme, L) {
     const x = L.colX(col);
 
     if (pile.length === 0) {
-      drawSlot(stage, g, x, L.tableauY, theme, 'K');
+      drawSlot(stage, g, x, L.tableauY, theme, 'K', L);
       return;
     }
 
@@ -183,6 +214,7 @@ function drawTableau(stage, g, state, theme, L) {
     if (!dealing) {
       renderPile(stage, g, x, L.tableauY, pile, {
         theme,
+        size: L.card,
         maxHeight: L.tableauH,
         selectedFrom,
       });
@@ -192,7 +224,7 @@ function drawTableau(stage, g, state, theme, L) {
 
     // Mid-deal each card travels from the stock corner to its own row, so the
     // pile is drawn card by card rather than as a settled stack.
-    const { offsets } = pileOffsets(pile, { maxHeight: L.tableauH });
+    const { offsets } = pileOffsets(pile, { size: L.card, maxHeight: L.tableauH });
     pile.forEach((card, i) => {
       const t = card.anim ? card.anim.t : 1;
       renderCard(
@@ -201,7 +233,7 @@ function drawTableau(stage, g, state, theme, L) {
         Math.round(lerp(stockX, x, t)),
         Math.round(lerp(L.topY, L.tableauY + offsets[i], t)),
         card,
-        { theme, faceUp: card.faceUp, shadow: i === pile.length - 1 },
+        { theme, size: L.card, faceUp: card.faceUp, shadow: i === pile.length - 1 },
       );
     });
   });
@@ -211,9 +243,10 @@ function drawTableau(stage, g, state, theme, L) {
 function drawFlip(stage, g, pile, x, y, theme, L) {
   const card = top(pile);
   if (!card || card.flip == null) return;
-  const { offsets } = pileOffsets(pile, { maxHeight: L.tableauH });
+  const { offsets } = pileOffsets(pile, { size: L.card, maxHeight: L.tableauH });
   renderCard(stage, g, x, y + offsets[pile.length - 1], card, {
     theme,
+    size: L.card,
     faceUp: true,
     squash: card.flip,
     shadow: true,
@@ -233,7 +266,7 @@ function drawCursor(stage, g, state, theme, L) {
   for (const dest of state.hints ?? []) {
     const hx = L.colX(dest.zone === 'foundation' ? FOUNDATION_COL + dest.index : dest.index);
     const hy = (dest.zone === 'foundation' ? L.topY : L.tableauY) - 1;
-    stage.put(hx, hy, `${g.dot} `.repeat(Math.floor(CARD_W / 2)), {
+    stage.put(hx, hy, `${g.dot} `.repeat(Math.floor(L.cardW / 2)), {
       fg: theme.good,
       bg: theme.table,
     });
@@ -244,7 +277,7 @@ function drawCursor(stage, g, state, theme, L) {
   const x = L.colX(isTop ? topSlotColumn(col) : col);
   const y = (isTop ? L.topY : L.tableauY) - 1;
 
-  stage.put(x, y, g.hDouble.repeat(CARD_W), {
+  stage.put(x, y, g.hDouble.repeat(L.cardW), {
     fg: state.selection ? theme.good : theme.accent,
     bg: theme.table,
     bold: true,
@@ -343,14 +376,14 @@ function drawWinBanner(stage, g, state, theme, L) {
   const x = Math.floor((L.w - w) / 2);
   const y = Math.floor((L.h - h) / 2);
 
-  stage.fill(x, y, w, h, ' ', { bg: theme.tableDark });
-  box(stage, g, x, y, w, h, { fg: theme.accent, bg: theme.tableDark }, 'double');
+  stage.fill(x, y, w, h, ' ', { bg: theme.highlight });
+  box(stage, g, x, y, w, h, { fg: theme.accent, bg: theme.highlight }, 'double');
 
   lines.forEach((line, i) => {
     if (!line) return;
     stage.put(x + Math.floor((w - strWidth(line)) / 2), y + 2 + i, line, {
       fg: i === 0 ? theme.accent : theme.text,
-      bg: theme.tableDark,
+      bg: theme.highlight,
       bold: i === 0,
     });
   });

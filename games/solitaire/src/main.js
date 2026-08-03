@@ -6,9 +6,9 @@
  */
 
 import { createApp, parseArgs, loadPrefs } from '@clicade/tui';
-import { getTheme } from '@clicade/kit';
+import { themeFor } from '@clicade/kit';
 import { createGame } from './game.js';
-import { render, MIN_W, MIN_H } from './render.js';
+import { render, minSize } from './render.js';
 
 export const meta = {
   id: 'solitaire',
@@ -22,7 +22,9 @@ export function start(opts = {}) {
   const args = opts.args ?? parseArgs(opts.argv);
   const prefs = opts.prefs ?? loadPrefs();
   const game = createGame({ seed: opts.seed });
-  const theme = getTheme(args.theme || prefs.theme || process.env.CLICADE_THEME || 'felt');
+  const theme = themeFor(args, prefs);
+  const scale = prefs.scale ?? 'normal';
+  const min = minSize(scale);
 
   const app = createApp({
     name: 'solitaire — clicade',
@@ -30,12 +32,12 @@ export function start(opts = {}) {
     prefs,
     fps: 60,
     standalone: opts.standalone !== false,
-    stage: { fill: true, minWidth: MIN_W, minHeight: MIN_H },
+    stage: { fill: true, minWidth: min.width, minHeight: min.height },
     caps: opts.caps,
     stream: opts.stream,
     stdin: opts.stdin,
     update: (dt) => game.update(dt),
-    render: (_alpha, ctx) => render(ctx.stage, ctx.glyphs, game, theme, ctx),
+    render: (_alpha, ctx) => render(ctx.stage, ctx.glyphs, game, theme, { ...ctx, scale }),
     onKey: (key, ctx) => onKey(key, ctx, game),
     onQuit: () => game.persist(),
   });

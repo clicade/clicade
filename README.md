@@ -24,9 +24,34 @@ Most `npx` games fail the same way: they prompt with `readline` so you type an a
 | Playable at 80×24 | golden-frame tests |
 | Terminal size can't change outcomes | fixed logical stage in `packages/tui/src/stage.js` |
 
-## Colour
+## Setup, colour and contrast
 
-Every game accepts the same flags:
+The first `npx clicade` opens a short setup flow. It asks about **contrast** and **background** because those are the two things a terminal genuinely will not tell us: it reports its size and its colour depth, but not that you run a dark theme our green felt fights. Guessing wrong there makes the first launch — the one that counts — look broken.
+
+Everything is changeable afterwards, and setup can be run again:
+
+```bash
+npx clicade --settings   # settings directly
+npx clicade --setup      # run first-time setup again
+```
+
+Press **s** in the menu for settings, **r** in settings to redo setup.
+
+| Setting | Options | What it does |
+|---|---|---|
+| Contrast | Normal · High | Pushes text away from its background. Derived from the palette, not hand-authored, so all three stay in step. |
+| Background | Themed · **Terminal** | Terminal paints **no background at all** — your own shows through, untouched. |
+| Size | Compact · Normal · Roomy | Card size and spacing. |
+| Colour | Colour · Monochrome | Same as `--mono` and F2. |
+| Palette | Felt · Paper · Noir | |
+
+Settings preview live: the screen redraws in the theme being edited, with real cards and real text tones, so a contrast choice is visible while the cursor is still on it.
+
+**Background: Terminal** is the answer to a dark-themed terminal. `styleToSgr` emits nothing for a null background, so we send no `48;…` sequence and your terminal keeps whatever it already was. Cards keep their faces — without one a card stops reading as an object sitting on something.
+
+Terminal *font size* belongs to your emulator; no escape sequence changes it. Size here means cells: bigger cards, more room. Compact exists for the opposite reason — a deep solitaire pile fits a short window at four rows a card where it will not at five.
+
+Flags still work and still win over saved preferences:
 
 ```bash
 npx @clicade/blackjack --mono        # monochrome
@@ -34,9 +59,7 @@ npx @clicade/blackjack --color       # force colour on
 npx @clicade/blackjack --theme noir  # felt | paper | noir
 ```
 
-Press **F2** in any game to switch between colour and monochrome live. The choice is saved globally, so it applies to every clicade game from then on — a player who wants monochrome shouldn't have to tell each game separately. `NO_COLOR` overrides everything and cannot be undone by a flag or a keypress.
-
-F2 is reserved engine-wide for this. Function keys, deliberately: every letter stays available as a gameplay binding.
+`NO_COLOR` overrides everything and cannot be undone by a flag or a keypress. F2 is reserved engine-wide for the colour toggle — a function key, deliberately, so every letter stays available as a gameplay binding.
 
 ## Resize and zoom must not change the game
 

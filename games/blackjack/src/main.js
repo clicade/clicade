@@ -9,7 +9,7 @@
  */
 
 import { createApp, parseArgs, loadPrefs } from '@clicade/tui';
-import { getTheme } from '@clicade/kit';
+import { themeFor } from '@clicade/kit';
 import { createGame, MIN_BET, BET_STEP } from './game.js';
 import { render, MIN_W, MIN_H } from './render.js';
 
@@ -32,7 +32,7 @@ export function start(opts = {}) {
   const args = opts.args ?? parseArgs(opts.argv);
   const prefs = opts.prefs ?? loadPrefs();
   const game = createGame();
-  const theme = getTheme(args.theme || prefs.theme || process.env.CLICADE_THEME || 'felt');
+  const theme = themeFor(args, prefs);
 
   const app = createApp({
     name: 'blackjack — clicade',

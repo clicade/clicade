@@ -1,6 +1,21 @@
 export { createRng, randomSeed } from './rng.js';
 export { createTween, createTimeline, ease, lerp } from './tween.js';
-export { THEMES, getTheme } from './theme.js';
+export {
+  THEMES,
+  THEME_NAMES,
+  CONTRASTS,
+  SURFACES,
+  SCALES,
+  SCALE_METRICS,
+  getTheme,
+  getScale,
+  resolveTheme,
+  themeFor,
+  applyContrast,
+  applySurface,
+  luminance,
+  isDark,
+} from './theme.js';
 export {
   SUITS,
   RANKS,

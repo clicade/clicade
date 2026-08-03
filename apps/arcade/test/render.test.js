@@ -15,7 +15,13 @@ function frame(cols, rows, { index = 0, unicode = true } = {}) {
   stage.measure();
 
   const menu = createMenu(CATALOG, index);
-  render(stage, glyphs(caps), menu, getTheme('noir'), { colorAvailable: true, mono: false });
+  // The menu animates in, so a single frame at t=0 is a blank screen. These
+  // tests are about the settled layout; the entrance itself is covered in
+  // screens.test.js.
+  for (let i = 0; i < 200; i++) menu.update(1 / 60);
+
+  const g = glyphs(caps);
+  render(stage, g, menu, getTheme('noir'), { colorAvailable: true, mono: false, glyphs: g });
   return screen.toText();
 }
 
@@ -62,7 +68,7 @@ test('playable games are never labelled soon', () => {
 
 test('layout keeps the footer inside the window at every size', () => {
   for (let h = MIN_H; h <= 80; h++) {
-    const L = layout(MIN_W, h);
+    const L = layout(MIN_W, h, 'normal');
     assert.ok(L.hintY < h, `hint row ${L.hintY} outside a ${h}-row window`);
     assert.ok(L.controlsY > L.by, 'footer must sit below the block');
   }

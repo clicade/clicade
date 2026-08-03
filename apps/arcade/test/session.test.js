@@ -12,6 +12,7 @@ import { EventEmitter } from 'node:events';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { savePrefs, ONBOARDING_VERSION } from '@clicade/tui';
 import { run } from '../src/main.js';
 import { CATALOG } from '../src/catalog.js';
 
@@ -20,6 +21,11 @@ import { CATALOG } from '../src/catalog.js';
 const CONFIG = mkdtempSync(join(tmpdir(), 'clicade-test-'));
 process.env.CLICADE_CONFIG_DIR = CONFIG;
 process.on('exit', () => rmSync(CONFIG, { recursive: true, force: true }));
+
+// These tests are about the menu, so setup is marked done. Without this every
+// one of them would open onto the onboarding flow instead — which is itself
+// worth testing, and is, in onboarding.test.js.
+savePrefs({ onboarded: ONBOARDING_VERSION });
 
 function fakeStdin() {
   const stream = new EventEmitter();
