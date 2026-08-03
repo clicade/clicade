@@ -1,6 +1,6 @@
 {
   "name": "@clicade/blackjack",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "description": "Blackjack in your terminal. Zero dependencies, real table, no readline prompts.",
   "keywords": [
