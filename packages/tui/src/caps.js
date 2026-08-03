@@ -69,8 +69,12 @@ export function detectCaps(opts = {}) {
     altScreen: isTTY && !isDumb,
     /** Per-keypress input. Falls back to line-buffered reads when false. */
     rawInput: isTTY && typeof input?.setRawMode === 'function',
-    /** Mouse reporting is opt-in per game; this only says whether it's possible. */
-    mouse: isTTY && !isDumb,
+    /**
+     * Mouse reporting is opt-in per game; this only says whether it's possible.
+     * Legacy conhost does not answer SGR mouse requests, and asking anyway
+     * leaves the escape sequence printed on screen.
+     */
+    mouse: isTTY && !isDumb && (!isWindows || winModern),
     cols: Math.max(1, stream?.columns || 80),
     rows: Math.max(1, stream?.rows || 24),
     platform,

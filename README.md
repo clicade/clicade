@@ -147,11 +147,31 @@ const result = await app.run();   // { code, reason }
 
 An app declares whether it owns the process. Standalone apps (`npx @clicade/blackjack`) end it; embedded ones hand control back. A game never knows which it is.
 
+## The mouse
+
+Blackjack's actions are buttons. Click them, or press the key printed on the face — the key is always shown, because the mouse is an addition to the keyboard and never a replacement. A terminal game that can only be played with a mouse has given up the thing that made it worth writing.
+
+```
+  What would you like to do? Click, or press the key.
+
+  ╭───────╮ ╭─────────╮ ╭──────────╮ ╭─────────╮
+  │ h hit │ │ s stand │ │ d double │ │ p split │
+  ╰───────╯ ╰─────────╯ ╰──────────╯ ╰─────────╯
+```
+
+Unavailable actions are shown greyed rather than hidden — the opposite of the rule solitaire follows, and on purpose. In solitaire a missing hint is a key that does nothing. Here the four actions *are* blackjack, and seeing that split exists, greyed because this hand is not a pair, is how the table teaches the game.
+
+Reporting uses SGR mode (`1006`) rather than the original X10 encoding, which packs each coordinate into a single byte and so cannot address a column past 223 — reachable on any maximised window.
+
+**Turning the mouse on takes away your terminal's own text selection**: a drag becomes the game's event instead of a highlight. So **F3** switches it off and on, and the choice is remembered. Most terminals also let you hold Shift for native selection while it is on.
+
+Buttons record their clickable region *from the same numbers that drew them*, in the same call. Drawn in one place and clickable in another is the classic failure here, and it looks perfect in a screenshot.
+
 ### Games
 
 | Game | Package | Notes |
 |---|---|---|
-| Blackjack | `@clicade/blackjack` | 6 decks, 3:2, double and split |
+| Blackjack | `@clicade/blackjack` | 6 decks, 3:2, double and split — clickable |
 | Solitaire | `@clicade/solitaire` | Klondike, turn one or three, unlimited undo, safe autoplay |
 
 Solitaire turns **one** card by default. Press `t` for three — the classic, harder deal, where two of every three cards stay buried until the pass comes round again. The choice is remembered, takes effect on the next draw rather than discarding the game in progress, and can be set at launch:

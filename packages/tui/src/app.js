@@ -70,7 +70,7 @@ export function createApp(opts = {}) {
   // Streams are injectable so the whole lifecycle can be exercised in a test
   // without a real terminal. Games never pass them.
   const screen = createScreen({ caps, stream: opts.stream });
-  const input = createInput({ caps, input: opts.stdin });
+  const input = createInput({ caps, input: opts.stdin, output: opts.stream ?? process.stdout });
   const g = glyphs(caps);
 
   // A fixed logical playfield, if the game declares one. Games that use it can
@@ -188,6 +188,23 @@ export function createApp(opts = {}) {
     savePrefs({ ...prefs, mono });
   }
 
+  // Mouse reporting is opt-in per game and remembered per player. Unset means
+  // "on where the terminal supports it" — the point of buttons is that they
+  // work without being switched on first.
+  let mouseWanted = prefs.mouse !== false;
+
+  function setMouseEnabled(value) {
+    mouseWanted = Boolean(value);
+    if (opts.mouse) input.setMouse(mouseWanted, opts.mouse !== 'clicks');
+    return mouseWanted;
+  }
+
+  function toggleMouse() {
+    setMouseEnabled(!mouseWanted);
+    savePrefs({ ...prefs, mouse: mouseWanted });
+    screen.invalidate();
+  }
+
   const ctx = {
     caps,
     screen,
@@ -206,6 +223,16 @@ export function createApp(opts = {}) {
     /** Whether colour is even available, so games can hide the hint if not. */
     get colorAvailable() {
       return fullDepth !== COLOR_NONE;
+    },
+    setMouseEnabled,
+    toggleMouse,
+    /** Whether this terminal could report mouse events at all. */
+    get mouseAvailable() {
+      return Boolean(opts.mouse && caps.mouse);
+    },
+    /** Whether it is reporting them right now. */
+    get mouseEnabled() {
+      return Boolean(opts.mouse && caps.mouse && mouseWanted);
     },
     get fps() {
       return loop?.fps ?? 0;
@@ -267,8 +294,28 @@ export function createApp(opts = {}) {
           toggleMono();
           return;
         }
+        // F3 turns mouse reporting off and on. It needs a key because enabling
+        // it takes the terminal's own text selection away, and a player who
+        // wants to copy something must not have to quit the game to do it.
+        if (key.name === 'f3' && opts.mouse) {
+          toggleMouse();
+          return;
+        }
         opts.onKey?.(key, ctx);
       });
+
+      input.onMouse((event) => {
+        // Games are drawn in stage coordinates; the terminal reports its own.
+        // Handing over raw screen coordinates would make every game undo the
+        // letterbox itself, and get it wrong the first time the window grew.
+        const local = stage
+          ? { ...event, x: event.x - stage.originX, y: event.y - stage.originY }
+          : event;
+        local.inside = !stage || (local.x >= 0 && local.y >= 0 && local.x < stage.width && local.y < stage.height);
+        opts.onMouse?.(local, ctx);
+      });
+
+      if (opts.mouse) input.setMouse(mouseWanted, opts.mouse !== 'clicks');
 
       opts.setup?.(ctx);
 

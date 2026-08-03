@@ -1,6 +1,7 @@
 export { detectCaps, unplayableReason, COLOR_NONE, COLOR_16, COLOR_256, COLOR_TRUE } from './caps.js';
 export { createScreen } from './screen.js';
-export { createInput, parseKeys } from './input.js';
+export { createInput, parseKeys, parseInput } from './input.js';
+export { parseMouse, mouseOn, MOUSE_OFF } from './mouse.js';
 export { createLoop } from './loop.js';
 export { createStage } from './stage.js';
 export { createApp } from './app.js';

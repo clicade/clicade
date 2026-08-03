@@ -12,7 +12,7 @@
  */
 
 import { strWidth } from '@clicade/tui';
-import { renderCard, handWidth, lerp, SIZES } from '@clicade/kit';
+import { renderCard, handWidth, lerp, SIZES, drawRow, rowWidth } from '@clicade/kit';
 import { OUTCOME_LABEL, handValue } from './rules.js';
 
 /** Smallest table that stays readable. Below this the game pauses. */
@@ -51,12 +51,64 @@ export function layout(w, h) {
     controlsY: h - 2,
     rulesY: h - 1,
     shoe: { x: w - 9, y: 0 },
+    // Bordered buttons need three rows instead of one. A 24-row terminal is
+    // still the commonest size there is, so they only appear where the height
+    // is genuinely spare — below that the same buttons draw flat, on the row
+    // the hints already used. Either way they are clickable, and the minimum
+    // window does not move.
+    buttonsBoxed: h >= 26,
+    buttonsY: h >= 26 ? h - 4 : h - 2,
   };
+}
+
+/**
+ * The actions available right now, as buttons.
+ *
+ * Unavailable ones are shown disabled rather than hidden — the opposite of the
+ * rule solitaire follows, and deliberately. In solitaire a missing hint is a
+ * key that does nothing. Here the four actions *are* blackjack: seeing that
+ * double and split exist, and that they are greyed because this hand is not a
+ * pair, is how somebody learns the game from the table instead of from a book.
+ *
+ * `id` is the key the action dispatches, so a click and a keypress cannot drift
+ * apart. `key` is only what the face shows.
+ */
+export function actionsFor(game, ctx = {}, g = {}) {
+  const { state } = game;
+  const list = [];
+
+  if (state.phase === 'betting') {
+    list.push(
+      { id: 'left', key: g.arrowL ?? '<', label: 'less' },
+      { id: 'right', key: g.arrowR ?? '>', label: 'more' },
+      { id: 'enter', key: 'enter', label: 'deal' },
+    );
+  } else if (state.phase === 'player') {
+    const hand = state.hands[state.active] ?? { cards: [], bet: 0 };
+    list.push(
+      { id: 'h', key: 'h', label: 'hit' },
+      { id: 's', key: 's', label: 'stand' },
+      { id: 'd', key: 'd', label: 'double', enabled: game.canDouble() && state.bankroll >= hand.bet },
+      { id: 'p', key: 'p', label: 'split', enabled: game.canSplit() },
+    );
+  } else if (state.phase === 'settle') {
+    list.push({ id: 'enter', key: 'enter', label: 'next hand' });
+  } else if (state.phase === 'broke') {
+    list.push({ id: 'r', key: 'r', label: 'buy back in' });
+  }
+
+  if (ctx.colorAvailable) list.push({ id: 'f2', key: 'F2', label: ctx.mono ? 'color' : 'mono' });
+  list.push({ id: 'q', key: 'q', label: 'quit' });
+  return list;
 }
 
 export function render(stage, g, game, theme, ctx = {}) {
   const { state } = game;
   const L = layout(stage.width, stage.height);
+
+  // Regions are rebuilt every frame from the draw itself, so a button that
+  // stops being drawn stops being clickable in the same tick.
+  ctx.buttons?.clear();
 
   stage.fill(0, 0, L.w, L.h, ' ', { bg: theme.table });
 
@@ -66,7 +118,7 @@ export function render(stage, g, game, theme, ctx = {}) {
   if (state.phase === 'betting') drawBetting(stage, state, theme, L);
   else drawSeats(stage, g, state, theme, L);
 
-  drawMessage(stage, state, theme, L);
+  drawMessage(stage, state, theme, L, ctx);
   drawControls(stage, g, game, theme, L, ctx);
   drawRules(stage, theme, L);
 }
@@ -223,49 +275,42 @@ function drawHand(stage, g, cards, x, y, theme, L, opts = {}) {
   });
 }
 
-function drawMessage(stage, state, theme, L) {
-  if (!state.message) return;
-  const color = state.lastResult > 0 ? theme.good : state.lastResult < 0 ? theme.bad : theme.text;
+function drawMessage(stage, state, theme, L, ctx = {}) {
+  // With nothing to report, ask the question the buttons answer. A row of
+  // controls with no prompt above it reads as decoration; a player who does
+  // not know the game needs telling that it is their turn.
+  const prompt =
+    state.phase === 'player'
+      ? ctx.mouseEnabled
+        ? 'What would you like to do? Click, or press the key.'
+        : 'What would you like to do?'
+      : '';
+  const text = state.message || prompt;
+  if (!text) return;
 
-  stage.put(centred(L, state.message), L.messageY, state.message, {
-    fg: state.phase === 'settle' ? color : theme.text,
+  const color = state.lastResult > 0 ? theme.good : state.lastResult < 0 ? theme.bad : theme.text;
+  const settling = state.phase === 'settle' && state.message;
+
+  stage.put(centred(L, text), L.messageY, text, {
+    fg: settling ? color : state.message ? theme.text : theme.textMuted,
     bg: theme.table,
-    bold: state.phase === 'settle',
+    bold: Boolean(settling),
   });
 }
 
 function drawControls(stage, g, game, theme, L, ctx) {
-  const { state } = game;
-  let keys = [];
+  const items = actionsFor(game, ctx, g);
+  const buttons = ctx.buttons;
+  const style = L.buttonsBoxed ? 'boxed' : 'flat';
+  const gap = L.buttonsBoxed ? 1 : 3;
 
-  if (state.phase === 'betting') {
-    // Arrows come from the glyph set so an ASCII-only terminal shows <> rather
-    // than two replacement boxes where the controls should be.
-    keys = [[`${g.arrowL}${g.arrowR}`, 'bet'], ['enter', 'deal']];
-  } else if (state.phase === 'player') {
-    keys = [['h', 'hit'], ['s', 'stand']];
-    if (game.canDouble() && state.bankroll >= state.hands[state.active].bet) {
-      keys.push(['d', 'double']);
-    }
-    if (game.canSplit()) keys.push(['p', 'split']);
-  } else if (state.phase === 'settle') {
-    keys = [['enter', 'next hand']];
-  } else if (state.phase === 'broke') {
-    keys = [['r', 'buy back in']];
-  }
+  // Without a button set — a golden-frame test, say — the row still draws.
+  // Only the clicking needs one.
+  const sink = buttons ?? { add: () => {}, hovered: null, pressed: null };
+  const width = rowWidth(items, { gap, style });
+  const x = Math.max(0, Math.floor((L.w - width) / 2));
 
-  if (ctx.colorAvailable) keys.push(['F2', ctx.mono ? 'color' : 'mono']);
-  keys.push(['q', 'quit']);
-
-  const text = keys.map(([k, label]) => `${k} ${label}`).join('    ');
-  let x = centred(L, text);
-
-  for (const [key, label] of keys) {
-    stage.put(x, L.controlsY, key, { fg: theme.accent, bg: theme.table, bold: true });
-    x += strWidth(key) + 1;
-    stage.put(x, L.controlsY, label, { fg: theme.textMuted, bg: theme.table });
-    x += strWidth(label) + 4;
-  }
+  drawRow(stage, g, sink, x, L.buttonsY, items, { theme, gap, style });
 }
 
 function drawRules(stage, theme, L) {

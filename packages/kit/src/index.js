@@ -30,3 +30,4 @@ export {
   renderPile,
   pileOffsets,
 } from './card.js';
+export { createButtons, drawRow, buttonWidth, rowWidth } from './button.js';

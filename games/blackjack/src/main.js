@@ -9,7 +9,7 @@
  */
 
 import { createApp, parseArgs, loadPrefs } from '@clicade/tui';
-import { themeFor } from '@clicade/kit';
+import { themeFor, createButtons } from '@clicade/kit';
 import { createGame, MIN_BET, BET_STEP } from './game.js';
 import { render, MIN_W, MIN_H } from './render.js';
 
@@ -39,6 +39,7 @@ export function start(opts = {}) {
   const prefs = opts.prefs ?? loadPrefs();
   const game = createGame();
   const theme = themeFor(args, prefs);
+  const buttons = createButtons();
 
   const app = createApp({
     name: 'blackjack — clicade',
@@ -53,9 +54,18 @@ export function start(opts = {}) {
     // Take the terminal's size once, at launch, then freeze it. The table fills
     // the window, and zooming afterwards cannot resize the world.
     stage: { fill: true, minWidth: MIN_W, minHeight: MIN_H },
+    // Hover as well as clicks: a button that does not answer the pointer reads
+    // as a picture of a button.
+    mouse: true,
     update: (dt) => game.update(dt),
-    render: (_alpha, ctx) => render(ctx.stage, ctx.glyphs, game, theme, ctx),
+    render: (_alpha, ctx) => render(ctx.stage, ctx.glyphs, game, theme, { ...ctx, buttons }),
     onKey: (key, ctx) => onKey(key, ctx, game),
+    onMouse: (event, ctx) => {
+      const id = buttons.handle(event);
+      // A click is dispatched as the key it names, so the mouse can never do
+      // something the keyboard cannot, or do it differently.
+      if (id) onKey({ name: id, ctrl: false, alt: false, shift: false }, ctx, game);
+    },
     // Runs on every exit path, including Ctrl-C, which the engine intercepts
     // before any game handler sees it.
     onQuit: () => game.persist(),
@@ -70,6 +80,14 @@ export function start(opts = {}) {
 function onKey(key, ctx, game) {
   if (key.name === 'q') {
     ctx.quit(0, 'quit');
+    return;
+  }
+
+  // Clicking the colour button has to do what pressing F2 does. The engine
+  // intercepts the real keypress before any game sees it, so the click — which
+  // arrives here as a synthetic key — has to be routed by hand.
+  if (key.name === 'f2') {
+    ctx.toggleMono?.();
     return;
   }
 
