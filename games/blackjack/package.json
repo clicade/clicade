@@ -23,7 +23,7 @@
     "node": ">=18"
   },
   "bin": {
-    "blackjack": "./dist/cli.mjs"
+    "blackjack": "dist/cli.mjs"
   },
   "main": "./dist/cli.mjs",
   "source": "./index.js",

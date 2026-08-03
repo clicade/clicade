@@ -24,7 +24,7 @@
     "node": ">=18"
   },
   "bin": {
-    "clicade": "./dist/cli.mjs"
+    "clicade": "dist/cli.mjs"
   },
   "main": "./dist/cli.mjs",
   "source": "./index.js",
